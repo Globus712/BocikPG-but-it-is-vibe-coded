@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    // C# language support (IntelliSense, debugging, go-to-def)
+    "ms-dotnettools.csharp",
+    // .NET core tooling integration
+    "ms-dotnettools.dotnet-interactive-vscode",
+    // NuGet package management in editor
+    "jmrog.vscode-nuget-package-manager",
+    // Better .editorconfig support
+    "editorconfig.editorconfig",
+    // GitLens for blame / history
+    "eamodio.gitlens"
+  ]
+}

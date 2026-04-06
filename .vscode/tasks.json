@@ -1,0 +1,69 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/src/BocikPG/BocikPG.csproj",
+        "--configuration", "Debug",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "silent"
+      }
+    },
+    {
+      "label": "build-release",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/src/BocikPG/BocikPG.csproj",
+        "--configuration", "Release",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "silent"
+      }
+    },
+    {
+      "label": "restore",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "restore",
+        "${workspaceFolder}/src/BocikPG/BocikPG.csproj"
+      ],
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "reveal": "silent"
+      }
+    },
+    {
+      "label": "watch",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "watch",
+        "--project", "${workspaceFolder}/src/BocikPG/BocikPG.csproj",
+        "run"
+      ],
+      "problemMatcher": "$msCompile",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always"
+      }
+    }
+  ]
+}

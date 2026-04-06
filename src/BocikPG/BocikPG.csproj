@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RestoreAdditionalProjectSources>
+      https://api.nuget.org/v3/index.json
+    </RestoreAdditionalProjectSources>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>BocikPG</RootNamespace>
+    <AssemblyName>BocikPG</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Core DSharpPlus library -->
+    <PackageReference Include="DSharpPlus" Version="5.0.0-nightly-02581" />
+    <!-- All-in-one commands package (replaces SlashCommands + CommandsNext) -->
+    <PackageReference Include="DSharpPlus.Commands" Version="5.0.0-nightly-02581" />
+    <!-- Voice support -->
+    <PackageReference Include="DSharpPlus.VoiceNext" Version="5.0.0-nightly-02581" />
+    <!-- Lavalink — must use .Nightly variant for DSharpPlus 5 nightly builds -->
+    <PackageReference Include="Lavalink4NET.DSharpPlus.Nightly" Version="4.2.1" />
+    <!-- Generic host -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="appsettings.Development.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

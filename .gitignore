@@ -1,0 +1,45 @@
+## .NET / C# gitignore
+
+# Build output
+bin/
+obj/
+out/
+
+# NuGet packages
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+
+# VS files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+*.DotSettings.user
+
+# VSCode — ignore personal/machine-specific files, but KEEP shared project config
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Bot-specific: never commit tokens!
+appsettings.Development.json
+appsettings.Production.json
+appsettings.json
+
+# Voice recordings
+recordings/

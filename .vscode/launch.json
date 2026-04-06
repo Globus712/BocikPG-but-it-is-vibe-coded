@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // Uses C# Dev Kit — no hardcoded .dll path, just points at the .csproj.
+      // This is the recommended approach for .NET 10 + VS Code.
+      "name": "🐶 Run BocikPG",
+      "type": "dotnet",
+      "request": "launch",
+      "projectPath": "${workspaceFolder}/src/BocikPG/BocikPG.csproj",
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      // Fallback: plain terminal, no debugger, always works.
+      "name": "🐶 Run BocikPG (terminal)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "dotnet run --project src/BocikPG/BocikPG.csproj",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  ]
+}
