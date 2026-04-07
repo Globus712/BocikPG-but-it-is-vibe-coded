@@ -3,7 +3,8 @@ using System.Text.Json;
 public class KeywordService
 {
     private readonly string _filePath = "Keywords.json";
-    private Dictionary<string, string> _keywords;
+    private Dictionary<string, List<ResponseEntry>> _keywords;
+    private static readonly Random _random = new();
 
     public KeywordService()
     {
@@ -14,13 +15,13 @@ public class KeywordService
     {
         if (!File.Exists(_filePath))
         {
-            _keywords = new Dictionary<string, string>();
+            _keywords = new Dictionary<string, List<ResponseEntry>>();
             Save();
             return;
         }
         var json = File.ReadAllText(_filePath);
         var data = JsonSerializer.Deserialize<KeywordResponse>(json);
-        _keywords = data?.Keywords ?? new Dictionary<string, string>();
+        _keywords = data?.Keywords ?? new Dictionary<string, List<ResponseEntry>>();
     }
 
     private void Save()
@@ -30,33 +31,95 @@ public class KeywordService
         File.WriteAllText(_filePath, json);
     }
 
-    public string? GetResponse(string message)
+    // Returns a random response based on weights, or null if none
+    private string? PickRandomResponse(List<ResponseEntry> responses)
     {
-        var lower = message.ToLowerInvariant();
-        // Check exact match
-        if (_keywords.TryGetValue(lower, out var response))
-            return response;
-        // Optional: check if message contains any keyword
-        foreach (var kv in _keywords)
+        if (responses == null || responses.Count == 0)
+            return null;
+
+        int totalWeight = responses.Sum(r => r.Weight);
+        if (totalWeight <= 0) return null;
+
+        int roll = _random.Next(totalWeight);
+        int cumulative = 0;
+        foreach (var entry in responses)
         {
-            if (lower.Contains(kv.Key))
-                return kv.Value;
+            cumulative += entry.Weight;
+            if (roll < cumulative)
+            {
+                // If the selected response text is empty or whitespace, return null (send nothing)
+                return string.IsNullOrWhiteSpace(entry.Text) ? null : entry.Text;
+            }
         }
         return null;
     }
 
-    public void AddKeyword(string keyword, string response)
+    public string? GetResponse(string message)
     {
-        _keywords[keyword.ToLowerInvariant()] = response;
+        // Ignore empty or whitespace messages
+        if (string.IsNullOrWhiteSpace(message))
+            return null;
+
+        var lower = message.ToLowerInvariant();
+
+        // Contains match
+        foreach (var kv in _keywords)
+        {
+            if (lower.Contains(kv.Key))
+                return PickRandomResponse(kv.Value);
+        }
+        return null;
+    }
+
+    // Add a weighted response to a keyword
+    public void AddResponse(string keyword, string text, int weight = 1)
+    {
+        var key = keyword.ToLowerInvariant();
+
+        // Ensure the keyword entry exists
+        if (!_keywords.ContainsKey(key))
+            _keywords[key] = new List<ResponseEntry>();
+
+        // Check if the exact same response text already exists
+        var existing = _keywords[key].FirstOrDefault(e => e.Text == text);
+        if (existing != null)
+        {
+            // Update weight instead of adding duplicate
+            existing.Weight = weight;
+        }
+        else
+        {
+            // Add new response
+            _keywords[key].Add(new ResponseEntry { Text = text, Weight = weight });
+        }
+
         Save();
     }
 
-    public bool RemoveKeyword(string keyword)
+    // Remove a specific response (by exact text match)
+    public bool RemoveResponse(string keyword, string text)
     {
-        var removed = _keywords.Remove(keyword.ToLowerInvariant());
-        if (removed) Save();
+        var key = keyword.ToLowerInvariant();
+        if (!_keywords.TryGetValue(key, out var entries))
+            return false;
+
+        var removed = entries.RemoveAll(e => e.Text == text) > 0;
+        if (removed && entries.Count == 0)
+            _keywords.Remove(key);
+        Save();
         return removed;
     }
+    
 
-    public Dictionary<string, string> GetAllKeywords() => new(_keywords);
+    // Get all responses (with weights) for a keyword
+    public List<ResponseEntry> GetResponses(string keyword)
+    {
+        var key = keyword.ToLowerInvariant();
+        return _keywords.TryGetValue(key, out var entries)
+            ? new List<ResponseEntry>(entries)
+            : new List<ResponseEntry>();
+    }
+
+    // Get all keywords for listing
+    public Dictionary<string, List<ResponseEntry>> GetAllKeywords() => new(_keywords);
 }

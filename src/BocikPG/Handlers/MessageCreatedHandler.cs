@@ -12,14 +12,9 @@ public sealed class MessageCreatedHandler : IEventHandler<MessageCreatedEventArg
 
     public async Task HandleEventAsync(DiscordClient sender, MessageCreatedEventArgs args)
     {
-        // Ignore messages from the bot itself
-        if (args.Author.IsCurrent)
-            return;
-
+        if (args.Author.IsCurrent) return;
         var response = _keywordService.GetResponse(args.Message.Content);
         if (response != null)
-        {
             await args.Message.RespondAsync(response);
-        }
     }
 }
