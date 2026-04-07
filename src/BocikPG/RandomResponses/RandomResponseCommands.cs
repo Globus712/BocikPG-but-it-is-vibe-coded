@@ -1,0 +1,94 @@
+using System.Globalization;
+using BocikPG;
+using DSharpPlus.Commands;
+using DSharpPlus.Commands.Processors.SlashCommands;
+using DSharpPlus.Entities;
+using Microsoft.Extensions.DependencyInjection;
+
+[Command("random")]
+[RequireOwner]
+public sealed class RandomResponseCommands
+{
+    [Command("chance")]
+    public static async ValueTask SetChance(
+        CommandContext context,
+        [Parameter("user")] DiscordUser user,
+        [Parameter("chance")] string chanceStr)
+    {
+        var builder = new DiscordInteractionResponseBuilder().AsEphemeral();
+
+        if (!double.TryParse(chanceStr, NumberStyles.Any, CultureInfo.InvariantCulture, out double chance))
+        {
+            builder.WithContent("❌ Invalid number. Use decimal like `0.05` or `5%`.");
+            await context.RespondAsync(builder);
+            return;
+        }
+
+        var service = context.ServiceProvider.GetRequiredService<RandomResponseService>();
+        service.SetUserChance(user.Id, chance);
+        
+        builder.WithContent($"✅ Chance for {user.Mention} set to {(chance * 100).ToString("0.#####", CultureInfo.InvariantCulture)}%");
+        await context.RespondAsync(builder);
+    }
+
+    [Command("add")]
+    public static async ValueTask AddResponse(
+        CommandContext context,
+        [Parameter("user")] DiscordUser user,
+        [Parameter("text")] string text,
+        [Parameter("weight")] int weight = 1)
+    {
+        var builder = new DiscordInteractionResponseBuilder().AsEphemeral();
+        
+        var service = context.ServiceProvider.GetRequiredService<RandomResponseService>();
+        service.AddUserResponse(user.Id, text, weight);
+        
+        builder.WithContent($"✅ Added response for {user.Mention}: `{text}` (weight {weight})");
+        await context.RespondAsync(builder);
+    }
+
+    [Command("remove")]
+    public static async ValueTask RemoveResponse(
+        CommandContext context,
+        [Parameter("user")] DiscordUser user,
+        [Parameter("index")] int index)
+    {
+        var builder = new DiscordInteractionResponseBuilder().AsEphemeral();
+        var service = context.ServiceProvider.GetRequiredService<RandomResponseService>();
+        
+        if (service.RemoveUserResponse(user.Id, index - 1)) // 1‑based index for users
+            builder.WithContent($"✅ Removed response #{index} for {user.Mention}");
+        else
+            builder.WithContent($"⚠️ Invalid index for {user.Mention}");
+        
+        await context.RespondAsync(builder);
+    }
+
+    [Command("list")]
+    public static async ValueTask ListResponses(
+        CommandContext context,
+        [Parameter("user")] DiscordUser user)
+    {
+        var builder = new DiscordInteractionResponseBuilder().AsEphemeral();
+        var service = context.ServiceProvider.GetRequiredService<RandomResponseService>();
+        
+        var responses = service.GetUserResponses(user.Id);
+        var chance = service.GetUserChance(user.Id);
+        
+        if (responses.Count == 0)
+        {
+            builder.WithContent($"No custom responses for {user.Mention}. Using defaults.");
+            await context.RespondAsync(builder);
+            return;
+        }
+        
+        var list = string.Join("\n", responses.Select((r, i) => $"`{i + 1}`. {r.Text} (weight {r.Weight})"));
+        var msg = $"📋 Responses for {user.Mention} (chance: {chance:P0}):\n{list}";
+        
+        if (msg.Length > 2000) 
+            msg = msg[..1997] + "...";
+        
+        builder.WithContent(msg);
+        await context.RespondAsync(builder);
+    }
+}

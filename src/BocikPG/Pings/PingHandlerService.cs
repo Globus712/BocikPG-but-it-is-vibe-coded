@@ -49,14 +49,14 @@ public class PingHandlerService
 		return _options.DefaultResponse;
 	}
 
-	public async Task<(bool CanPing, string? Response)> CanPingAsync(ulong userId, DiscordMember? member)
+	public async Task<string?> CanPingAsync(ulong userId, DiscordMember? member)
 	{
 		string? response = null;
 		// Check if currently timed out by the bot's internal cooldown
 		if (_userPingState.TryGetValue(userId, out var state) && DateTime.UtcNow < state.timeoutUntil)
 		{
 			response = null;
-			return (false, response);
+			return response;
 		}
 
 		// Update ping count
@@ -68,7 +68,7 @@ public class PingHandlerService
 		if (newState.count == _options.MaxPings - 1)
 		{
 			response = string.Format(_options.WarningMessage, 1, _options.TimeoutSeconds);
-			return (true, response);
+			return response;
 		}
 
 		// Max pings reached → apply internal timeout + optional Discord server timeout
@@ -93,13 +93,12 @@ public class PingHandlerService
 				}
 			}
 
-			return (false, response);
+			return response;
 		}
 
 		// Normal response
 		response = GetResponseForUser(userId);
-		return (true, response);
-
+		return response;
 	}
 
 	public void SetPersonalizedResponse(ulong userId, string response)

@@ -8,15 +8,18 @@ public sealed class MessageCreatedHandler : IEventHandler<MessageCreatedEventArg
 {
     private readonly KeywordService _keywordService;
     private readonly PingHandlerService _pingService;
+    private readonly RandomResponseService _randomResponseService;
     private readonly bool _ttsEnabled;
 
     public MessageCreatedHandler(
         KeywordService keywordService,
         PingHandlerService pingService,
+        RandomResponseService randomResponseService,
         IOptions<PingOptions> pingOptions)
     {
         _keywordService = keywordService;
         _pingService = pingService;
+        _randomResponseService = randomResponseService;
         _ttsEnabled = pingOptions.Value.TtsEnabled;
     }
 
@@ -28,13 +31,19 @@ public sealed class MessageCreatedHandler : IEventHandler<MessageCreatedEventArg
         var keywordResponse = _keywordService.GetResponse(args.Message.Content);
         if (keywordResponse != null)
         {
-            var builder = new DiscordMessageBuilder()
-                .WithContent(keywordResponse);
-            await args.Message.RespondAsync(builder);
+            await args.Message.RespondAsync(keywordResponse);
             return;
         }
 
-        // 2. Bot mention response
+        // 2. Random response (chance based)
+        var randomResponse = _randomResponseService.GetRandomResponse(args.Author.Id);
+        if (randomResponse != null)
+        {
+            await args.Message.RespondAsync(randomResponse);
+            return;  // stop here, or allow both? Your choice.
+        }
+
+        // 3. Bot mention response
         if (args.Message.MentionedUsers?.Any(u => u.Id == sender.CurrentUser.Id) == true)
         {
             // Get the member (null if DM)
@@ -53,7 +62,7 @@ public sealed class MessageCreatedHandler : IEventHandler<MessageCreatedEventArg
                 }
             }
 
-            var (canPing, response) = await _pingService.CanPingAsync(args.Author.Id, member);
+            var response = await _pingService.CanPingAsync(args.Author.Id, member);
             if (response != null)
             {
                 var builder = new DiscordMessageBuilder()

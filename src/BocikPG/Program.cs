@@ -45,12 +45,14 @@ discordClientBuilder.ConfigureServices(services =>
     services.Configure<PingOptions>(builder.Configuration.GetSection("Ping"));
     services.Configure<BotOptions>(builder.Configuration.GetSection("Discord"));
     services.Configure<LavalinkOptions>(builder.Configuration.GetSection("Lavalink"));
+    services.Configure<RandomResponseOptions>(builder.Configuration.GetSection("RandomResponse"));
 
     // Custom services
     services.AddSingleton<MessageCreatedHandler>();
     services.AddSingleton<KeywordService>();
     services.AddSingleton<PingHandlerService>();
-    
+    services.AddSingleton<RandomResponseService>();
+
     services.AddHostedService<PingDecayService>();
 });
 
