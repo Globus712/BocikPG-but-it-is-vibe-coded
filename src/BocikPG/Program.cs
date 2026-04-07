@@ -20,6 +20,7 @@ builder.Configuration
 
 builder.Services.Configure<BotOptions>(builder.Configuration.GetSection("Discord"));
 builder.Services.Configure<LavalinkOptions>(builder.Configuration.GetSection("Lavalink"));
+builder.Services.Configure<PingOptions>(builder.Configuration.GetSection("Ping"));
 
 // ============================================================================
 // Discord Client Builder
@@ -41,9 +42,16 @@ discordClientBuilder.ConfigureServices(services =>
         config.Passphrase = ll["Password"] ?? "youshallnotpass";
     });
 
+    services.Configure<PingOptions>(builder.Configuration.GetSection("Ping"));
+    services.Configure<BotOptions>(builder.Configuration.GetSection("Discord"));
+    services.Configure<LavalinkOptions>(builder.Configuration.GetSection("Lavalink"));
+
     // Custom services
-    services.AddSingleton<KeywordService>();
     services.AddSingleton<MessageCreatedHandler>();
+    services.AddSingleton<KeywordService>();
+    services.AddSingleton<PingHandlerService>();
+    
+    services.AddHostedService<PingDecayService>();
 });
 
 // ---- Commands ----
