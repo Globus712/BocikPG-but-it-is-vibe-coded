@@ -17,17 +17,45 @@ public sealed class RandomResponseCommands
     {
         var builder = new DiscordInteractionResponseBuilder().AsEphemeral();
 
-        if (!double.TryParse(chanceStr, NumberStyles.Any, CultureInfo.InvariantCulture, out double chance))
+        double chance;
+        bool isPercentage = chanceStr.Trim().EndsWith('%');
+
+        if (isPercentage)
         {
-            builder.WithContent("❌ Invalid number. Use decimal like `0.05` or `5%`.");
+            // Remove the '%' and trim
+            var numberPart = chanceStr.Trim().TrimEnd('%');
+            if (!double.TryParse(numberPart, NumberStyles.Any, CultureInfo.InvariantCulture, out double percent))
+            {
+                builder.WithContent("❌ Invalid percentage. Use something like `5%` or `0.05`.");
+                await context.RespondAsync(builder);
+                return;
+            }
+            chance = percent / 100.0;
+        }
+        else
+        {
+            if (!double.TryParse(chanceStr, NumberStyles.Any, CultureInfo.InvariantCulture, out chance))
+            {
+                builder.WithContent("❌ Invalid number. Use decimal like `0.05` or `5%`.");
+                await context.RespondAsync(builder);
+                return;
+            }
+        }
+
+        // Validate range
+        if (chance < 0.0 || chance > 1.0)
+        {
+            builder.WithContent("❌ Chance must be between 0% and 100% (or 0.0 to 1.0).");
             await context.RespondAsync(builder);
             return;
         }
 
         var service = context.ServiceProvider.GetRequiredService<RandomResponseService>();
         service.SetUserChance(user.Id, chance);
-        
-        builder.WithContent($"✅ Chance for {user.Mention} set to {(chance * 100).ToString("0.#####", CultureInfo.InvariantCulture)}%");
+
+        // Format output nicely
+        string display = (chance * 100).ToString("0.#####", CultureInfo.InvariantCulture) + "%";
+        builder.WithContent($"✅ Chance for {user.Mention} set to {display}");
         await context.RespondAsync(builder);
     }
 
@@ -39,10 +67,10 @@ public sealed class RandomResponseCommands
         [Parameter("weight")] int weight = 1)
     {
         var builder = new DiscordInteractionResponseBuilder().AsEphemeral();
-        
+
         var service = context.ServiceProvider.GetRequiredService<RandomResponseService>();
         service.AddUserResponse(user.Id, text, weight);
-        
+
         builder.WithContent($"✅ Added response for {user.Mention}: `{text}` (weight {weight})");
         await context.RespondAsync(builder);
     }
@@ -55,12 +83,12 @@ public sealed class RandomResponseCommands
     {
         var builder = new DiscordInteractionResponseBuilder().AsEphemeral();
         var service = context.ServiceProvider.GetRequiredService<RandomResponseService>();
-        
+
         if (service.RemoveUserResponse(user.Id, index - 1)) // 1‑based index for users
             builder.WithContent($"✅ Removed response #{index} for {user.Mention}");
         else
             builder.WithContent($"⚠️ Invalid index for {user.Mention}");
-        
+
         await context.RespondAsync(builder);
     }
 
@@ -71,23 +99,23 @@ public sealed class RandomResponseCommands
     {
         var builder = new DiscordInteractionResponseBuilder().AsEphemeral();
         var service = context.ServiceProvider.GetRequiredService<RandomResponseService>();
-        
+
         var responses = service.GetUserResponses(user.Id);
         var chance = service.GetUserChance(user.Id);
-        
+
         if (responses.Count == 0)
         {
             builder.WithContent($"No custom responses for {user.Mention}. Using defaults.");
             await context.RespondAsync(builder);
             return;
         }
-        
+
         var list = string.Join("\n", responses.Select((r, i) => $"`{i + 1}`. {r.Text} (weight {r.Weight})"));
         var msg = $"📋 Responses for {user.Mention} (chance: {chance:P0}):\n{list}";
-        
-        if (msg.Length > 2000) 
+
+        if (msg.Length > 2000)
             msg = msg[..1997] + "...";
-        
+
         builder.WithContent(msg);
         await context.RespondAsync(builder);
     }
