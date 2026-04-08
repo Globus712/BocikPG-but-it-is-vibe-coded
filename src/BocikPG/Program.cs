@@ -2,62 +2,76 @@ using BocikPG;
 using DSharpPlus;
 using DSharpPlus.Commands;
 using DSharpPlus.Commands.Processors.SlashCommands;
+using DSharpPlus.VoiceNext;
+using Lavalink4NET;
 using Lavalink4NET.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-var builder = Host.CreateApplicationBuilder(args);
-
 // ============================================================================
 // Configuration
 // ============================================================================
-builder.Configuration
+var configuration = new ConfigurationBuilder()
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
     .AddJsonFile("appsettings.Development.json", optional: true, reloadOnChange: true)
-    .AddEnvironmentVariables();
+    .AddEnvironmentVariables()
+    .Build();
 
-builder.Services.Configure<BotOptions>(builder.Configuration.GetSection("Discord"));
-builder.Services.Configure<LavalinkOptions>(builder.Configuration.GetSection("Lavalink"));
-builder.Services.Configure<PingOptions>(builder.Configuration.GetSection("Ping"));
-
-// ============================================================================
-// Discord Client Builder
-// ============================================================================
-var token = builder.Configuration["Discord:Token"]
+var token = configuration["Discord:Token"]
     ?? throw new Exception("Discord:Token is not configured.");
 
+// ============================================================================
+// Discord Client Builder  (this IS the host)
+// ============================================================================
 var discordClientBuilder = DiscordClientBuilder.CreateSharded(token, DiscordIntents.All);
 
-// ---- Services (DI) ----
 discordClientBuilder.ConfigureServices(services =>
 {
-    // Lavalink
+    // ---- Configuration ----
+    services.AddSingleton<IConfiguration>(configuration);
+    services.Configure<BotOptions>(configuration.GetSection("Discord"));
+    services.Configure<LavalinkOptions>(configuration.GetSection("Lavalink"));
+    services.Configure<PingOptions>(configuration.GetSection("Ping"));
+    services.Configure<RandomResponseOptions>(configuration.GetSection("RandomResponse"));
+    services.Configure<VoiceOptions>(configuration.GetSection("Voice"));
+
+    // ---- Lavalink (registered here, in the same DI container) ----
     services.AddLavalink();
     services.ConfigureLavalink(config =>
     {
-        var ll = builder.Configuration.GetSection("Lavalink");
-        config.BaseAddress = new Uri($"http://{ll["Host"]}:{ll["Port"]}");
-        config.Passphrase = ll["Password"] ?? "youshallnotpass";
+        config.BaseAddress = new Uri(
+            $"http://{configuration["Lavalink:Host"] ?? "localhost"}:{configuration["Lavalink:Port"] ?? "2333"}");
+        config.Passphrase = configuration["Lavalink:Password"] ?? "youshallnotpass";
     });
 
-    services.Configure<PingOptions>(builder.Configuration.GetSection("Ping"));
-    services.Configure<BotOptions>(builder.Configuration.GetSection("Discord"));
-    services.Configure<LavalinkOptions>(builder.Configuration.GetSection("Lavalink"));
-    services.Configure<RandomResponseOptions>(builder.Configuration.GetSection("RandomResponse"));
-
-    // Custom services
+    // ---- Bot services ----
     services.AddSingleton<MessageCreatedHandler>();
     services.AddSingleton<KeywordService>();
     services.AddSingleton<PingHandlerService>();
     services.AddSingleton<RandomResponseService>();
+    services.AddSingleton<VoiceChannelService>();
+    services.AddSingleton<UserWeightService>();
+    services.AddSingleton<VoiceChannelService>();
 
     services.AddHostedService<PingDecayService>();
+
+    // ---- Logging ----
+    services.AddLogging(logging =>
+    {
+        logging.AddConsole();
+        // Read ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT to detect dev mode
+        var env = configuration["DOTNET_ENVIRONMENT"] ?? "Production";
+        logging.SetMinimumLevel(
+            env.Equals("Development", StringComparison.OrdinalIgnoreCase)
+                ? LogLevel.Debug
+                : LogLevel.Information);
+    });
 });
 
 // ---- Commands ----
-discordClientBuilder.UseCommands((serviceProvider, commands) =>
+discordClientBuilder.UseCommands((_, commands) =>
 {
     commands.AddCommands(typeof(Program).Assembly);
     commands.AddProcessor(new SlashCommandProcessor());
@@ -67,28 +81,29 @@ discordClientBuilder.UseCommands((serviceProvider, commands) =>
 discordClientBuilder.ConfigureEventHandlers(handlers =>
 {
     handlers.AddEventHandlers<MessageCreatedHandler>(ServiceLifetime.Singleton);
+    handlers.AddEventHandlers<VoiceEventHandler>(ServiceLifetime.Singleton);
 });
 
-// Build the client and register it with the host container
-var discordClient = discordClientBuilder.Build();
-builder.Services.AddSingleton(discordClient);
+discordClientBuilder.UseVoiceNext(new VoiceNextConfiguration());
 
 // ============================================================================
-// Hosted Service (lifecycle management)
+// Build & Run
 // ============================================================================
-builder.Services.AddHostedService<BotService>();
+var client = discordClientBuilder.Build();
 
-// ============================================================================
-// Logging
-// ============================================================================
-builder.Services.AddLogging(logging =>
+await client.ServiceProvider.GetRequiredService<IAudioService>().StartAsync();
+
+await client.ConnectAsync();
+
+using var cts = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) =>
 {
-    logging.AddConsole();
-    logging.SetMinimumLevel(
-        builder.Environment.IsDevelopment() ? LogLevel.Debug : LogLevel.Information);
-});
+    e.Cancel = true;
+    cts.Cancel();
+};
 
-// ============================================================================
-// Run
-// ============================================================================
-await builder.Build().RunAsync();
+
+await Task.Delay(Timeout.Infinite, cts.Token).ContinueWith(_ => Task.CompletedTask);
+
+await client.DisconnectAsync();
+

@@ -8,8 +8,8 @@ public class BotOptions
 
 public class LavalinkOptions
 {
-    public string Host     { get; set; } = "localhost";
-    public int    Port     { get; set; } = 2333;
+    public string Host { get; set; } = "localhost";
+    public int Port { get; set; } = 2333;
     public string Password { get; set; } = "youshallnotpass";
 }
 
@@ -25,4 +25,10 @@ public class PingOptions
     public bool DecayEnabled { get; set; } = true;
     public int DecayIntervalMinutes { get; set; } = 60;   // default 1 hour
     public int ServerTimeoutMinutes { get; set; } = 0;
+}
+
+public class VoiceOptions
+{
+    public bool AutoJoinEnabled { get; set; } = true;
+    public string WeightsFilePath { get; set; } = "user_weights.json";
 }
