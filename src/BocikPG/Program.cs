@@ -1,4 +1,5 @@
 using BocikPG;
+using BocikPG.Soundboard;
 using DSharpPlus;
 using DSharpPlus.Commands;
 using DSharpPlus.Commands.Processors.SlashCommands;
@@ -36,6 +37,7 @@ discordClientBuilder.ConfigureServices(services =>
     services.Configure<PingOptions>(configuration.GetSection("Ping"));
     services.Configure<RandomResponseOptions>(configuration.GetSection("RandomResponse"));
     services.Configure<VoiceOptions>(configuration.GetSection("Voice"));
+    services.Configure<SoundboardOptions>(configuration.GetSection("Soundboard"));
 
     // ---- Lavalink (registered here, in the same DI container) ----
     services.AddLavalink();
@@ -54,6 +56,9 @@ discordClientBuilder.ConfigureServices(services =>
     services.AddSingleton<VoiceChannelService>();
     services.AddSingleton<UserWeightService>();
     services.AddSingleton<VoiceChannelService>();
+    services.AddSingleton<SoundboardService>();
+    services.AddSingleton<SoundboardInteractionHandler>();
+    services.AddSingleton<SoundboardMessageStore>();
 
     services.AddHostedService<PingDecayService>();
 
@@ -82,6 +87,7 @@ discordClientBuilder.ConfigureEventHandlers(handlers =>
 {
     handlers.AddEventHandlers<MessageCreatedHandler>(ServiceLifetime.Singleton);
     handlers.AddEventHandlers<VoiceEventHandler>(ServiceLifetime.Singleton);
+    handlers.AddEventHandlers<SoundboardInteractionHandler>(ServiceLifetime.Singleton);
 });
 
 discordClientBuilder.UseVoiceNext(new VoiceNextConfiguration());

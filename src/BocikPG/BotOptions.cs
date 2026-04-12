@@ -30,5 +30,13 @@ public class PingOptions
 public class VoiceOptions
 {
     public bool AutoJoinEnabled { get; set; } = true;
-    public string WeightsFilePath { get; set; } = "user_weights.json";
+    public string WeightsFilePath { get; set; } = "Resources/Voice/user_weights.json";
+}
+
+public class SoundboardOptions
+{
+    public string SoundFilesPath { get; set; } = "Resources/Soundboard/Sounds";
+    public string SoundDefinitionsFile { get; set; } = "Resources/Soundboard/soundboard.json";
+    public string SoundBaseUrl { get; set; } = ""; // optional HTTP base URL
+    public string MessageStorageFile { get; set; } = "Resources/Soundboard/soundboard_messages.json";
 }

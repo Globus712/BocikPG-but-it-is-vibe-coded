@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Globalization;
 
 [Command("voice")]
+[RequireOwner]
 public sealed class VoiceCommands
 {
     [Command("setweight")]
