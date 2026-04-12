@@ -58,6 +58,7 @@ public class UserWeightService
         {
             var raw = _weights.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value);
             var json = JsonSerializer.Serialize(raw, new JsonSerializerOptions { WriteIndented = true });
+            Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
             await File.WriteAllTextAsync(_filePath, json);
         }
         catch (Exception ex)

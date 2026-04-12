@@ -44,6 +44,7 @@ public sealed class RandomResponseService
     {
         var dict = _userConfigs.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value);
         var json = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
+        Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
         File.WriteAllText(_filePath, json);
     }
 

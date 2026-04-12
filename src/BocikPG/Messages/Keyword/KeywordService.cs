@@ -2,7 +2,7 @@ using System.Text.Json;
 
 public class KeywordService
 {
-    private readonly string _filePath = "Keywords.json";
+    private readonly string _filePath = "Resources/Chat/Keywords.json";
     private Dictionary<string, List<ResponseEntry>> _keywords;
     private static readonly Random _random = new();
 
@@ -28,6 +28,7 @@ public class KeywordService
     {
         var data = new KeywordResponse { Keywords = _keywords };
         var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+        Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
         File.WriteAllText(_filePath, json);
     }
 

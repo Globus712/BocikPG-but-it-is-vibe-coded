@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 public class PingHandlerService
 {
-	private readonly string _filePath = "PersonalizedResponses.json";
+	private readonly string _filePath = "Resources/Chat/PersonalizedResponses.json";
 	private readonly PingOptions _options;
 	private readonly ILogger<PingHandlerService>? _logger;  // optional
 	private Dictionary<ulong, string> _personalizedResponses;
@@ -39,6 +39,7 @@ public class PingHandlerService
 	{
 		var dict = _personalizedResponses.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value);
 		var json = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
+		Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
 		File.WriteAllText(_filePath, json);
 	}
 
