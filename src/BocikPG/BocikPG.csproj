@@ -23,6 +23,7 @@
     <PackageReference Include="Lavalink4NET.DSharpPlus.Nightly" Version="4.2.1" />
     <!-- Generic host -->
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
+    <PackageReference Include="LibGit2Sharp"                       Version="0.31.0" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using BocikPG;
+using BocikPG.Sync;
 using DSharpPlus;
 using DSharpPlus.Entities;
 using Microsoft.Extensions.Logging;
@@ -10,26 +12,90 @@ namespace BocikPG.Soundboard;
 /// Persists soundboard message IDs per guild to disk so updates survive restarts.
 /// Storage format: { "guildId": { "pageIndex": { "channelId": ulong, "messageId": ulong } } }
 /// </summary>
-public class SoundboardMessageStore
+public class SoundboardMessageStore : IReloadable
 {
-    // In-memory: guildId -> pageIndex -> (channelId, messageId)
     private Dictionary<ulong, Dictionary<int, StoredMessage>> _data = new();
 
     private readonly DiscordClient _client;
-    private readonly string        _filePath;
+    private readonly string _filePath;
     private readonly ILogger<SoundboardMessageStore> _logger;
+    private readonly GitSyncService _syncService;
 
     public record StoredMessage(ulong ChannelId, ulong MessageId);
 
     public SoundboardMessageStore(
         DiscordClient client,
         IOptions<SoundboardOptions> options,
-        ILogger<SoundboardMessageStore> logger)
+        ILogger<SoundboardMessageStore> logger,
+        GitSyncService syncService)
     {
-        _client   = client;
+        _client = client;
         _filePath = Path.Combine(AppContext.BaseDirectory, options.Value.MessageStorageFile);
-        _logger   = logger;
+        _logger = logger;
+        _syncService = syncService;
         Load();
+    }
+
+    // ── IReloadable ───────────────────────────────────────────────────────────
+
+    public Task ReloadAsync()
+    {
+        Load();
+        return Task.CompletedTask;
+    }
+
+    // ── Persistence ───────────────────────────────────────────────────────────
+
+    private void Load()
+    {
+        if (!File.Exists(_filePath))
+        {
+            _logger.LogInformation("No soundboard message store found at {Path}, starting fresh.", _filePath);
+            Interlocked.Exchange(ref _data, new Dictionary<ulong, Dictionary<int, StoredMessage>>());
+            return;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(_filePath);
+            var raw = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, StoredMessage>>>(json);
+            if (raw is null) return;
+
+            var loaded = raw.ToDictionary(
+                outer => ulong.Parse(outer.Key),
+                outer => outer.Value.ToDictionary(
+                    inner => int.Parse(inner.Key),
+                    inner => inner.Value));
+
+            Interlocked.Exchange(ref _data, loaded);
+            _logger.LogInformation("Loaded soundboard message store for {Count} guild(s).", _data.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load soundboard message store from {Path}", _filePath);
+        }
+    }
+
+    private void Save()
+    {
+        try
+        {
+            var raw = _data.ToDictionary(
+                outer => outer.Key.ToString(),
+                outer => outer.Value.ToDictionary(
+                    inner => inner.Key.ToString(),
+                    inner => inner.Value));
+
+            var json = JsonSerializer.Serialize(raw, new JsonSerializerOptions { WriteIndented = true });
+            _ = Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
+            File.WriteAllText(_filePath, json);
+
+            _ = _syncService.SyncFileAsync(Path.GetFullPath(_filePath), "Update soundboard message store");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save soundboard message store to {Path}", _filePath);
+        }
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -70,72 +136,16 @@ public class SoundboardMessageStore
 
     public void Clear(ulong guildId)
     {
-        _data.Remove(guildId);
+        _ = _data.Remove(guildId);
         Save();
     }
 
-    /// <summary>Removes stored page entries above <paramref name="keepPages"/> for a guild.</summary>
     public void TrimTo(ulong guildId, int keepPages)
     {
         if (!_data.TryGetValue(guildId, out var pages)) return;
         var toRemove = pages.Keys.Where(k => k >= keepPages).ToList();
         foreach (var key in toRemove)
-            pages.Remove(key);
+            _ = pages.Remove(key);
         Save();
-    }
-
-    // ── Persistence ───────────────────────────────────────────────────────────
-
-    private void Load()
-    {
-        if (!File.Exists(_filePath))
-        {
-            _logger.LogInformation("No soundboard message store found at {Path}, starting fresh.", _filePath);
-            return;
-        }
-
-        try
-        {
-            var json = File.ReadAllText(_filePath);
-            // Deserialize as string keys then convert to ulong
-            var raw = JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, StoredMessage>>>(json);
-            if (raw is null) return;
-
-            _data = raw.ToDictionary(
-                outer => ulong.Parse(outer.Key),
-                outer => outer.Value.ToDictionary(
-                    inner => int.Parse(inner.Key),
-                    inner => inner.Value
-                )
-            );
-            _logger.LogInformation("Loaded soundboard message store for {Count} guild(s).", _data.Count);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load soundboard message store from {Path}", _filePath);
-        }
-    }
-
-    private void Save()
-    {
-        try
-        {
-            // Serialize with string keys (JSON only supports string keys)
-            var raw = _data.ToDictionary(
-                outer => outer.Key.ToString(),
-                outer => outer.Value.ToDictionary(
-                    inner => inner.Key.ToString(),
-                    inner => inner.Value
-                )
-            );
-
-            var json = JsonSerializer.Serialize(raw, new JsonSerializerOptions { WriteIndented = true });
-            Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
-            File.WriteAllText(_filePath, json);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to save soundboard message store to {Path}", _filePath);
-        }
     }
 }

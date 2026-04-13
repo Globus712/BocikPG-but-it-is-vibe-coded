@@ -73,7 +73,7 @@ public class SoundboardInteractionHandler : IEventHandler<ComponentInteractionCr
 
         if (voiceChannelId is null)
         {
-            await args.Interaction.EditOriginalResponseAsync(
+            _ = await args.Interaction.EditOriginalResponseAsync(
                 new DiscordWebhookBuilder().WithContent("❌ You are not in a voice channel."));
             return;
         }
@@ -91,7 +91,7 @@ public class SoundboardInteractionHandler : IEventHandler<ComponentInteractionCr
 
             if (!File.Exists(filePath))
             {
-                await args.Interaction.EditOriginalResponseAsync(
+                _ = await args.Interaction.EditOriginalResponseAsync(
                     new DiscordWebhookBuilder()
                         .WithContent($"❌ Sound file not found: `{sound.Filename}`\nExpected at: `{filePath}`"));
                 return;
@@ -112,7 +112,7 @@ public class SoundboardInteractionHandler : IEventHandler<ComponentInteractionCr
 
             if (!result.IsSuccess)
             {
-                await args.Interaction.EditOriginalResponseAsync(
+                _ = await args.Interaction.EditOriginalResponseAsync(
                     new DiscordWebhookBuilder()
                         .WithContent($"❌ Could not connect to voice: {result.Status}"));
                 return;
@@ -128,7 +128,7 @@ public class SoundboardInteractionHandler : IEventHandler<ComponentInteractionCr
 
             if (track is null)
             {
-                await args.Interaction.EditOriginalResponseAsync(
+                _ = await args.Interaction.EditOriginalResponseAsync(
                     new DiscordWebhookBuilder()
                         .WithContent($"❌ Lavalink couldn't load `{sound.Filename}`. " +
                                      "Make sure the **Local** source is enabled in your Lavalink `application.yml`."));

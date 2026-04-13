@@ -31,9 +31,9 @@ public sealed class PingCommands
         var builder = new DiscordInteractionResponseBuilder().AsEphemeral();
         
         if (service.RemovePersonalizedResponse(user.Id))
-            builder.WithContent($"❌ Removed personalized response for {user.Mention}.");
+            _ = builder.WithContent($"❌ Removed personalized response for {user.Mention}.");
         else
-            builder.WithContent($"⚠️ No personalized response found for {user.Mention}.");
+            _ = builder.WithContent($"⚠️ No personalized response found for {user.Mention}.");
         
         await context.RespondAsync(builder);
     }
@@ -48,7 +48,7 @@ public sealed class PingCommands
         
         if (allResponses.Count == 0)
         {
-            builder.WithContent("No personalized responses have been set.");
+            _ = builder.WithContent("No personalized responses have been set.");
         }
         else
         {
@@ -57,7 +57,7 @@ public sealed class PingCommands
             // Truncate if too long (Discord limit 2000 characters)
             if (list.Length > 1900)
                 list = list.Substring(0, 1900) + "\n... (truncated)";
-            builder.WithContent($"📋 Personalized responses:\n{list}");
+            _ = builder.WithContent($"📋 Personalized responses:\n{list}");
         }
         
         await context.RespondAsync(builder);

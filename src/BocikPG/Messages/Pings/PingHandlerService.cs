@@ -1,154 +1,149 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using BocikPG;
+using BocikPG.Sync;
 using DSharpPlus.Entities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-public class PingHandlerService
+public class PingHandlerService : IReloadable
 {
-	private readonly string _filePath = "Resources/Chat/PersonalizedResponses.json";
-	private readonly PingOptions _options;
-	private readonly ILogger<PingHandlerService>? _logger;  // optional
-	private Dictionary<ulong, string> _personalizedResponses;
-	private ConcurrentDictionary<ulong, (int count, DateTime timeoutUntil)> _userPingState = new();
-	public bool DecayEnabled { get; set; } = true;
-	public int DecayIntervalMinutes { get; set; } = 60;
+    private readonly string _filePath;
+    private readonly PingOptions _options;
+    private readonly ILogger<PingHandlerService>? _logger;
+    private readonly GitSyncService _syncService;
+    private Dictionary<ulong, string> _personalizedResponses = new();
+    private ConcurrentDictionary<ulong, (int count, DateTime timeoutUntil)> _userPingState = new();
+    public bool DecayEnabled { get; set; } = true;
+    public int DecayIntervalMinutes { get; set; } = 60;
 
-	// Inject ILogger optionally
-	public PingHandlerService(IOptions<PingOptions> options, ILogger<PingHandlerService>? logger = null)
-	{
-		_options = options.Value;
-		_logger = logger;
-		LoadPersonalizedResponses();
-	}
-	private void LoadPersonalizedResponses()
-	{
-		if (!File.Exists(_filePath))
-		{
-			_personalizedResponses = new();
-			Save();
-			return;
-		}
-		var json = File.ReadAllText(_filePath);
-		var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
-		_personalizedResponses = dict?.ToDictionary(kv => ulong.Parse(kv.Key), kv => kv.Value) ?? new();
-	}
+    public PingHandlerService(IOptions<PingOptions> options, GitSyncService syncService, ILogger<PingHandlerService>? logger = null)
+    {
+        _options = options.Value;
+        _logger = logger;
+        _syncService = syncService;
+        _filePath = _options.PersonalizedResponsesFilePath;
+        LoadPersonalizedResponses();
+    }
 
-	private void Save()
-	{
-		var dict = _personalizedResponses.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value);
-		var json = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
-		Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
-		File.WriteAllText(_filePath, json);
-	}
+    // ── IReloadable ───────────────────────────────────────────────────────────
 
-	public string GetResponseForUser(ulong userId)
-	{
-		if (_personalizedResponses.TryGetValue(userId, out var custom))
-			return custom;
-		return _options.DefaultResponse;
-	}
+    public Task ReloadAsync()
+    {
+        LoadPersonalizedResponses();
+        // Runtime ping state (_userPingState) is intentionally not reset on reload —
+        // it tracks live cooldowns unrelated to the persisted file.
+        return Task.CompletedTask;
+    }
 
-	public async Task<string?> CanPingAsync(ulong userId, DiscordMember? member)
-	{
-		string? response = null;
-		// Check if currently timed out by the bot's internal cooldown
-		if (_userPingState.TryGetValue(userId, out var state) && DateTime.UtcNow < state.timeoutUntil)
-		{
-			response = null;
-			return response;
-		}
+    // ── Persistence ───────────────────────────────────────────────────────────
 
-		// Update ping count
-		var newState = _userPingState.AddOrUpdate(userId,
-			(1, DateTime.MinValue),
-			(_, old) => (old.count + 1, old.timeoutUntil));
+    private void LoadPersonalizedResponses()
+    {
+        if (!File.Exists(_filePath))
+        {
+            _personalizedResponses = new();
+            _ = SaveAsync();
+            return;
+        }
 
-		// Warning threshold reached
-		if (newState.count == _options.MaxPings - 1)
-		{
-			response = string.Format(_options.WarningMessage, 1, _options.TimeoutSeconds);
-			return response;
-		}
+        var json = File.ReadAllText(_filePath);
+        var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+        var loaded = dict?.ToDictionary(kv => ulong.Parse(kv.Key), kv => kv.Value) ?? new();
+        Interlocked.Exchange(ref _personalizedResponses, loaded);
+    }
 
-		// Max pings reached → apply internal timeout + optional Discord server timeout
-		if (newState.count >= _options.MaxPings)
-		{
-			var timeoutUntil = DateTime.UtcNow.AddSeconds(_options.TimeoutSeconds);
-			_userPingState[userId] = (0, timeoutUntil);
-			response = string.Format(_options.MaxPingsMessage, _options.MaxPings, _options.TimeoutSeconds);
+    private async Task SaveAsync()
+    {
+        try
+        {
+            var dict = _personalizedResponses.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value);
+            var json = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
 
-			// --- Discord server timeout (if enabled and member is valid) ---
-			if (_options.ServerTimeoutMinutes > 0 && member != null)
-			{
-				try
-				{
-					var until = DateTimeOffset.UtcNow.AddMinutes(_options.ServerTimeoutMinutes);
-					await member.TimeoutAsync(until, "Exceeded max ping limit.");
-					_logger?.LogInformation("Timed out user {UserId} for {Minutes} minutes.", userId, _options.ServerTimeoutMinutes);
-				}
-				catch (Exception ex)
-				{
-					_logger?.LogError(ex, "Failed to timeout user {UserId}. Missing permissions?", userId);
-				}
-			}
+            Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
+            await File.WriteAllTextAsync(_filePath, json);
+            await _syncService.SyncFileAsync(Path.GetFullPath(_filePath), "Update personalized ping responses");
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to save personalized responses");
+        }
+    }
 
-			return response;
-		}
+    // ── Public API ────────────────────────────────────────────────────────────
 
-		// Normal response
-		response = GetResponseForUser(userId);
-		return response;
-	}
+    public string GetResponseForUser(ulong userId)
+    {
+        if (_personalizedResponses.TryGetValue(userId, out var custom))
+            return custom;
+        return _options.DefaultResponse;
+    }
 
-	public void SetPersonalizedResponse(ulong userId, string response)
-	{
-		_personalizedResponses[userId] = response;
-		Save();
-	}
+    public async Task<string?> CanPingAsync(ulong userId, DiscordMember? member)
+    {
+        if (_userPingState.TryGetValue(userId, out var state) && DateTime.UtcNow < state.timeoutUntil)
+            return null;
 
-	public bool RemovePersonalizedResponse(ulong userId)
-	{
-		var removed = _personalizedResponses.Remove(userId);
-		if (removed) Save();
-		return removed;
-	}
+        var newState = _userPingState.AddOrUpdate(userId,
+            (1, DateTime.MinValue),
+            (_, old) => (old.count + 1, old.timeoutUntil));
 
-	public Dictionary<ulong, string> GetAllPersonalizedResponses()
-	{
-		return new Dictionary<ulong, string>(_personalizedResponses);
-	}
+        if (newState.count == _options.MaxPings - 1)
+            return string.Format(_options.WarningMessage, 1, _options.TimeoutSeconds);
 
-	public void DecayPingCounts()
-	{
-		// Get a snapshot of all user IDs currently in the dictionary
-		var users = _userPingState.Keys.ToList();
+        if (newState.count >= _options.MaxPings)
+        {
+            var timeoutUntil = DateTime.UtcNow.AddSeconds(_options.TimeoutSeconds);
+            _userPingState[userId] = (0, timeoutUntil);
 
-		foreach (var userId in users)
-		{
-			// Retrieve current state
-			if (!_userPingState.TryGetValue(userId, out var state))
-				continue;
+            if (_options.ServerTimeoutMinutes > 0 && member != null)
+            {
+                try
+                {
+                    var until = DateTimeOffset.UtcNow.AddMinutes(_options.ServerTimeoutMinutes);
+                    await member.TimeoutAsync(until, "Exceeded max ping limit.");
+                    _logger?.LogInformation("Timed out user {UserId} for {Minutes} minutes.", userId, _options.ServerTimeoutMinutes);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Failed to timeout user {UserId}. Missing permissions?", userId);
+                }
+            }
 
-			// Do not decay if the user is currently timed out
-			if (state.timeoutUntil > DateTime.UtcNow)
-				continue;
+            return string.Format(_options.MaxPingsMessage, _options.MaxPings, _options.TimeoutSeconds);
+        }
 
-			int newCount = Math.Max(0, state.count - 1);
+        return GetResponseForUser(userId);
+    }
 
-			if (newCount == 0)
-			{
-				// Remove entry entirely if count reaches zero and no timeout
-				_userPingState.TryRemove(userId, out _);
-			}
-			else
-			{
-				// Update with the reduced count
-				_userPingState.AddOrUpdate(userId,
-					(newCount, DateTime.MinValue),
-					(_, _) => (newCount, DateTime.MinValue));
-			}
-		}
-	}
+    public void SetPersonalizedResponse(ulong userId, string response)
+    {
+        _personalizedResponses[userId] = response;
+        _ = SaveAsync();
+    }
+
+    public bool RemovePersonalizedResponse(ulong userId)
+    {
+        var removed = _personalizedResponses.Remove(userId);
+        if (removed) _ = SaveAsync();
+        return removed;
+    }
+
+    public Dictionary<ulong, string> GetAllPersonalizedResponses() =>
+        new Dictionary<ulong, string>(_personalizedResponses);
+
+    public void DecayPingCounts()
+    {
+        foreach (var userId in _userPingState.Keys.ToList())
+        {
+            if (!_userPingState.TryGetValue(userId, out var state)) continue;
+            if (state.timeoutUntil > DateTime.UtcNow) continue;
+
+            int newCount = Math.Max(0, state.count - 1);
+            if (newCount == 0)
+                _ = _userPingState.TryRemove(userId, out _);
+            else
+                _ = _userPingState.AddOrUpdate(userId, (newCount, DateTime.MinValue), (_, _) => (newCount, DateTime.MinValue));
+        }
+    }
 }

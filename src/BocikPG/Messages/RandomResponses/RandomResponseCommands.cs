@@ -26,7 +26,7 @@ public sealed class RandomResponseCommands
             var numberPart = chanceStr.Trim().TrimEnd('%');
             if (!double.TryParse(numberPart, NumberStyles.Any, CultureInfo.InvariantCulture, out double percent))
             {
-                builder.WithContent("❌ Invalid percentage. Use something like `5%` or `0.05`.");
+                _ = builder.WithContent("❌ Invalid percentage. Use something like `5%` or `0.05`.");
                 await context.RespondAsync(builder);
                 return;
             }
@@ -36,7 +36,7 @@ public sealed class RandomResponseCommands
         {
             if (!double.TryParse(chanceStr, NumberStyles.Any, CultureInfo.InvariantCulture, out chance))
             {
-                builder.WithContent("❌ Invalid number. Use decimal like `0.05` or `5%`.");
+                _ = builder.WithContent("❌ Invalid number. Use decimal like `0.05` or `5%`.");
                 await context.RespondAsync(builder);
                 return;
             }
@@ -45,7 +45,7 @@ public sealed class RandomResponseCommands
         // Validate range
         if (chance < 0.0 || chance > 1.0)
         {
-            builder.WithContent("❌ Chance must be between 0% and 100% (or 0.0 to 1.0).");
+            _ = builder.WithContent("❌ Chance must be between 0% and 100% (or 0.0 to 1.0).");
             await context.RespondAsync(builder);
             return;
         }
@@ -55,7 +55,7 @@ public sealed class RandomResponseCommands
 
         // Format output nicely
         string display = (chance * 100).ToString("0.#####", CultureInfo.InvariantCulture) + "%";
-        builder.WithContent($"✅ Chance for {user.Mention} set to {display}");
+        _ = builder.WithContent($"✅ Chance for {user.Mention} set to {display}");
         await context.RespondAsync(builder);
     }
 
@@ -71,7 +71,7 @@ public sealed class RandomResponseCommands
         var service = context.ServiceProvider.GetRequiredService<RandomResponseService>();
         service.AddUserResponse(user.Id, text, weight);
 
-        builder.WithContent($"✅ Added response for {user.Mention}: `{text}` (weight {weight})");
+        _ = builder.WithContent($"✅ Added response for {user.Mention}: `{text}` (weight {weight})");
         await context.RespondAsync(builder);
     }
 
@@ -85,9 +85,9 @@ public sealed class RandomResponseCommands
         var service = context.ServiceProvider.GetRequiredService<RandomResponseService>();
 
         if (service.RemoveUserResponse(user.Id, index - 1)) // 1‑based index for users
-            builder.WithContent($"✅ Removed response #{index} for {user.Mention}");
+            _ = builder.WithContent($"✅ Removed response #{index} for {user.Mention}");
         else
-            builder.WithContent($"⚠️ Invalid index for {user.Mention}");
+            _ = builder.WithContent($"⚠️ Invalid index for {user.Mention}");
 
         await context.RespondAsync(builder);
     }
@@ -105,7 +105,7 @@ public sealed class RandomResponseCommands
 
         if (responses.Count == 0)
         {
-            builder.WithContent($"No custom responses for {user.Mention}. Using defaults.");
+            _ = builder.WithContent($"No custom responses for {user.Mention}. Using defaults.");
             await context.RespondAsync(builder);
             return;
         }
@@ -116,7 +116,7 @@ public sealed class RandomResponseCommands
         if (msg.Length > 2000)
             msg = msg[..1997] + "...";
 
-        builder.WithContent(msg);
+        _ = builder.WithContent(msg);
         await context.RespondAsync(builder);
     }
 }

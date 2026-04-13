@@ -1,27 +1,81 @@
 using System.Text.Json;
 using BocikPG;
+using BocikPG.Sync;
 using DSharpPlus.Entities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-public class SoundboardService
+public class SoundboardService : IReloadable
 {
     private readonly SoundboardOptions _options;
-    private readonly string            _dataFilePath;
+    private readonly string _dataFilePath;
     private readonly ILogger<SoundboardService> _logger;
-    private List<SoundDefinition>      _sounds = [];
+    private readonly GitSyncService _syncService;
+    private List<SoundDefinition> _sounds = [];
 
     public SoundboardService(
         IOptions<SoundboardOptions> options,
-        ILogger<SoundboardService> logger)
+        ILogger<SoundboardService> logger,
+        GitSyncService syncService)
     {
-        _options      = options.Value;
+        _options = options.Value;
         _dataFilePath = Path.Combine(AppContext.BaseDirectory, _options.SoundDefinitionsFile);
-        _logger       = logger;
+        _logger = logger;
+        _syncService = syncService;
         LoadSounds();
     }
 
-    // ── Data access ───────────────────────────────────────────────────────────
+    // ── IReloadable ───────────────────────────────────────────────────────────
+
+    public Task ReloadAsync()
+    {
+        LoadSounds();
+        return Task.CompletedTask;
+    }
+
+    // ── Persistence ───────────────────────────────────────────────────────────
+
+    private void LoadSounds()
+    {
+        if (!File.Exists(_dataFilePath))
+        {
+            _logger.LogInformation("Soundboard file not found at {Path}, starting with empty list.", _dataFilePath);
+            Interlocked.Exchange(ref _sounds, []);
+            _ = SaveSounds();
+            return;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(_dataFilePath);
+            var data = JsonSerializer.Deserialize<SoundboardData>(json);
+            Interlocked.Exchange(ref _sounds, data?.Sounds ?? []);
+            _logger.LogInformation("Loaded {Count} sounds from {Path}", _sounds.Count, _dataFilePath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load soundboard from {Path}", _dataFilePath);
+            Interlocked.Exchange(ref _sounds, []);
+        }
+    }
+
+    private async Task SaveSounds()
+    {
+        try
+        {
+            var data = new SoundboardData { Sounds = _sounds };
+            var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+            _ = Directory.CreateDirectory(Path.GetDirectoryName(_dataFilePath)!);
+            await File.WriteAllTextAsync(_dataFilePath, json);
+            await _syncService.SyncFileAsync(Path.GetFullPath(_dataFilePath), "Update soundboard data");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save soundboard to {Path}", _dataFilePath);
+        }
+    }
+
+    // ── Public API ────────────────────────────────────────────────────────────
 
     public IReadOnlyList<SoundDefinition> GetAllSounds() => _sounds.AsReadOnly();
 
@@ -31,23 +85,17 @@ public class SoundboardService
     public void AddSound(SoundDefinition sound)
     {
         _sounds.Add(sound);
-        SaveSounds();
+        _ = SaveSounds();
     }
 
     public bool RemoveSound(string name)
     {
         var removed = _sounds.RemoveAll(
             s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) > 0;
-        if (removed) SaveSounds();
+        if (removed) _ = SaveSounds();
         return removed;
     }
 
-    // ── Component builder ─────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Builds Discord action rows (3 columns, max 5 rows = 15 buttons per call).
-    /// Used by SoundboardCommands to render the soundboard message.
-    /// </summary>
     public List<DiscordActionRowComponent> BuildActionRows()
     {
         const int columns = 3;
@@ -72,63 +120,13 @@ public class SoundboardService
         return rows;
     }
 
-    // ── Persistence ───────────────────────────────────────────────────────────
-
-    private void LoadSounds()
-    {
-        if (!File.Exists(_dataFilePath))
-        {
-            _logger.LogInformation(
-                "Soundboard file not found at {Path}, starting with empty list.", _dataFilePath);
-            _sounds = [];
-            SaveSounds();
-            return;
-        }
-
-        try
-        {
-            var json = File.ReadAllText(_dataFilePath);
-            var data = JsonSerializer.Deserialize<SoundboardData>(json);
-            _sounds = data?.Sounds ?? [];
-            _logger.LogInformation("Loaded {Count} sounds from {Path}", _sounds.Count, _dataFilePath);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load soundboard from {Path}", _dataFilePath);
-            _sounds = [];
-        }
-    }
-
-    private void SaveSounds()
-    {
-        try
-        {
-            var data = new SoundboardData { Sounds = _sounds };
-            var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
-            Directory.CreateDirectory(Path.GetDirectoryName(_dataFilePath)!);
-            File.WriteAllText(_dataFilePath, json);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to save soundboard to {Path}", _dataFilePath);
-        }
-    }
-
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// Resolves an emoji string to DiscordComponentEmoji without using FromUnicode.
-    /// Supports:
-    ///   - Unicode emoji:              "😂"
-    ///   - Custom emoji (full format): "&lt;:name:123456789&gt;" or "&lt;a:name:123456789&gt;"
-    ///   - Raw snowflake ID:           "123456789012345678"
-    /// </summary>
     private static DiscordComponentEmoji? ResolveEmoji(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
             return null;
 
-        // <:name:id> or <a:name:id>
         if (raw.StartsWith('<') && raw.EndsWith('>'))
         {
             var inner = raw.Trim('<', '>');
@@ -139,11 +137,9 @@ public class SoundboardService
                 return new DiscordComponentEmoji(eid);
         }
 
-        // Raw snowflake ID
         if (ulong.TryParse(raw, out var snowflake))
             return new DiscordComponentEmoji(snowflake);
 
-        // Unicode emoji — constructor accepts the string directly
         return new DiscordComponentEmoji(raw.Trim(':'));
     }
 }

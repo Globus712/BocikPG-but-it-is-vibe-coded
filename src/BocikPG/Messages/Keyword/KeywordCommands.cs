@@ -52,9 +52,9 @@ public sealed class KeywordCommands
         var builder = new DiscordInteractionResponseBuilder().AsEphemeral();
 
         if (service.RemoveResponse(keyword, response))
-            builder.WithContent($"❌ Removed response from `{keyword}`: {response}");
+            _ = builder.WithContent($"❌ Removed response from `{keyword}`: {response}");
         else
-            builder.WithContent($"⚠️ Response not found for `{keyword}`.");
+            _ = builder.WithContent($"⚠️ Response not found for `{keyword}`.");
 
         await context.RespondAsync(builder);
     }
@@ -70,9 +70,9 @@ public sealed class KeywordCommands
         var builder = new DiscordInteractionResponseBuilder().AsEphemeral();
 
         if (service.RemoveResponse(keyword, ""))
-            builder.WithContent($"❌ Removed a silent response for keyword `{keyword}`.");
+            _ = builder.WithContent($"❌ Removed a silent response for keyword `{keyword}`.");
         else
-            builder.WithContent($"⚠️ No silent response found for keyword `{keyword}`.");
+            _ = builder.WithContent($"⚠️ No silent response found for keyword `{keyword}`.");
 
         await context.RespondAsync(builder);
     }
@@ -90,13 +90,13 @@ public sealed class KeywordCommands
 
         if (responses.Count == 0)
         {
-            builder.WithContent($"No responses found for keyword `{keyword}`.");
+            _ = builder.WithContent($"No responses found for keyword `{keyword}`.");
         }
         else
         {
             var list = string.Join("\n", responses.Select((r, i) =>
                 $"{i + 1}. {(string.IsNullOrWhiteSpace(r.Text) ? "(silent)" : $"\"{r.Text}\"")} (weight: {r.Weight})"));
-            builder.WithContent($"📋 Responses for `{keyword}`:\n{list}");
+            _ = builder.WithContent($"📋 Responses for `{keyword}`:\n{list}");
         }
 
         await context.RespondAsync(builder);
@@ -113,12 +113,12 @@ public sealed class KeywordCommands
 
         if (all.Count == 0)
         {
-            builder.WithContent("No keywords defined.");
+            _ = builder.WithContent("No keywords defined.");
         }
         else
         {
             var list = string.Join("\n", all.Select(kv => $"**{kv.Key}** ({kv.Value.Count} responses)"));
-            builder.WithContent($"📋 Current keywords:\n{list}");
+            _ = builder.WithContent($"📋 Current keywords:\n{list}");
         }
 
         await context.RespondAsync(builder);

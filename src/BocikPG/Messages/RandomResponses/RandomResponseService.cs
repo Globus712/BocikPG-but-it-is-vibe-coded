@@ -1,61 +1,71 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using BocikPG.Sync;
 using Microsoft.Extensions.Options;
 
 namespace BocikPG;
 
-public sealed class RandomResponseService
+public sealed class RandomResponseService : IReloadable
 {
     private readonly Random _random = new();
     private readonly RandomResponseOptions _options;
     private readonly string _filePath;
+    private readonly GitSyncService _syncService;
     private ConcurrentDictionary<ulong, UserRandomConfig> _userConfigs = new();
 
-    public RandomResponseService(IOptions<RandomResponseOptions> options)
+    public RandomResponseService(IOptions<RandomResponseOptions> options, GitSyncService syncService)
     {
         _options = options.Value;
         _filePath = _options.StorageFile;
+        _syncService = syncService;
         Load();
     }
+
+    // ── IReloadable ───────────────────────────────────────────────────────────
+
+    public Task ReloadAsync()
+    {
+        Load();
+        return Task.CompletedTask;
+    }
+
+    // ── Persistence ───────────────────────────────────────────────────────────
 
     private void Load()
     {
         if (!File.Exists(_filePath))
         {
-            _userConfigs = new ConcurrentDictionary<ulong, UserRandomConfig>();
-            Save();
+            Interlocked.Exchange(ref _userConfigs, new ConcurrentDictionary<ulong, UserRandomConfig>());
+            _ = SaveAsync();
             return;
         }
 
         var json = File.ReadAllText(_filePath);
         var dict = JsonSerializer.Deserialize<Dictionary<string, UserRandomConfig>>(json);
-        if (dict != null)
-        {
-            _userConfigs = new ConcurrentDictionary<ulong, UserRandomConfig>(
-                dict.ToDictionary(kv => ulong.Parse(kv.Key), kv => kv.Value));
-        }
-        else
-        {
-            _userConfigs = new ConcurrentDictionary<ulong, UserRandomConfig>();
-        }
+        var loaded = dict != null
+            ? new ConcurrentDictionary<ulong, UserRandomConfig>(
+                dict.ToDictionary(kv => ulong.Parse(kv.Key), kv => kv.Value))
+            : new ConcurrentDictionary<ulong, UserRandomConfig>();
+
+        Interlocked.Exchange(ref _userConfigs, loaded);
     }
 
-    private void Save()
+    private async Task SaveAsync()
     {
         var dict = _userConfigs.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value);
         var json = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
-        Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
-        File.WriteAllText(_filePath, json);
+        _ = Directory.CreateDirectory(Path.GetDirectoryName(_filePath)!);
+        await File.WriteAllTextAsync(_filePath, json); // was File.WriteAllText — fixed
+
+        await _syncService.SyncFileAsync(Path.GetFullPath(_filePath), "Update random response");
     }
 
-    /// <summary>
-    /// Returns a random response if the user triggers the chance, otherwise null.
-    /// </summary>
+    // ── Public API ────────────────────────────────────────────────────────────
+
     public string? GetRandomResponse(ulong userId)
     {
         if (!_options.GlobalEnabled) return null;
 
-        // Get user config or create default
         var userConfig = _userConfigs.GetOrAdd(userId, _ => new UserRandomConfig
         {
             Chance = _options.DefaultChance,
@@ -65,11 +75,9 @@ public sealed class RandomResponseService
 
         if (!userConfig.Enabled) return null;
 
-        // Roll the dice
         var roll = _random.NextDouble();
         if (roll >= userConfig.Chance) return null;
 
-        // Choose weighted response
         var totalWeight = userConfig.Responses.Sum(r => r.Weight);
         if (totalWeight == 0) return null;
 
@@ -82,10 +90,9 @@ public sealed class RandomResponseService
                 return resp.Text;
         }
 
-        return null; // fallback
+        return null;
     }
 
-    // Admin commands
     public void SetUserChance(ulong userId, double chance)
     {
         var config = _userConfigs.GetOrAdd(userId, _ => new UserRandomConfig
@@ -95,7 +102,7 @@ public sealed class RandomResponseService
             Enabled = true
         });
         config.Chance = Math.Clamp(chance, 0, 1);
-        Save();
+        _ = SaveAsync();
     }
 
     public void AddUserResponse(ulong userId, string text, int weight)
@@ -107,7 +114,7 @@ public sealed class RandomResponseService
             Enabled = true
         });
         config.Responses.Add(new WeightedResponse { Text = text, Weight = weight });
-        Save();
+        _ = SaveAsync();
     }
 
     public bool RemoveUserResponse(ulong userId, int index)
@@ -115,7 +122,7 @@ public sealed class RandomResponseService
         if (_userConfigs.TryGetValue(userId, out var config) && index >= 0 && index < config.Responses.Count)
         {
             config.Responses.RemoveAt(index);
-            Save();
+            _ = SaveAsync();
             return true;
         }
         return false;
@@ -144,6 +151,6 @@ public sealed class RandomResponseService
             Enabled = true
         });
         config.Enabled = enabled;
-        Save();
+        _ = SaveAsync();
     }
 }

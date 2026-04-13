@@ -31,7 +31,7 @@ public sealed class MessageCreatedHandler : IEventHandler<MessageCreatedEventArg
         var keywordResponse = _keywordService.GetResponse(args.Message.Content);
         if (keywordResponse != null)
         {
-            await args.Message.RespondAsync(keywordResponse);
+            _ = await args.Message.RespondAsync(keywordResponse);
             return;
         }
 
@@ -39,7 +39,7 @@ public sealed class MessageCreatedHandler : IEventHandler<MessageCreatedEventArg
         var randomResponse = _randomResponseService.GetRandomResponse(args.Author.Id);
         if (randomResponse != null)
         {
-            await args.Message.RespondAsync(randomResponse);
+            _ = await args.Message.RespondAsync(randomResponse);
             return;  // stop here, or allow both? Your choice.
         }
 
@@ -68,7 +68,7 @@ public sealed class MessageCreatedHandler : IEventHandler<MessageCreatedEventArg
                 var builder = new DiscordMessageBuilder()
                     .WithContent(response)
                     .WithTTS(_ttsEnabled);
-                await args.Message.RespondAsync(builder);
+                _ = await args.Message.RespondAsync(builder);
             }
         }
     }

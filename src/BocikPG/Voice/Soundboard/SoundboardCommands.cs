@@ -13,12 +13,12 @@ namespace BocikPG.Soundboard;
 [Description("Soundboard commands.")]
 public class SoundboardCommands
 {
-    private const int Columns           = 3;
-    private const int RowsPerMessage    = 5;
+    private const int Columns = 3;
+    private const int RowsPerMessage = 5;
     private const int ButtonsPerMessage = Columns * RowsPerMessage; // 15
 
-    private readonly SoundboardService          _soundboardService;
-    private readonly SoundboardMessageStore     _store;
+    private readonly SoundboardService _soundboardService;
+    private readonly SoundboardMessageStore _store;
     private readonly ILogger<SoundboardCommands> _logger;
 
     public SoundboardCommands(
@@ -27,8 +27,8 @@ public class SoundboardCommands
         ILogger<SoundboardCommands> logger)
     {
         _soundboardService = soundboardService;
-        _store             = store;
-        _logger            = logger;
+        _store = store;
+        _logger = logger;
     }
 
     // ── /soundboard create ────────────────────────────────────────────────────
@@ -70,11 +70,15 @@ public class SoundboardCommands
         for (int pageIndex = 0; pageIndex < pages.Count; pageIndex++)
         {
             var builder = BuildPageMessage(pages[pageIndex], isFirst: pageIndex == 0, isLast: pageIndex == pages.Count - 1);
-            var sent    = await ctx.Channel.SendMessageAsync(builder);
+            var sent = await ctx.Channel.SendMessageAsync(builder);
             _store.Set(guildId, pageIndex, sent);
         }
 
-        await ctx.EditResponseAsync(new DiscordWebhookBuilder()
+        // Stop button as its own message
+        var stopSent = await ctx.Channel.SendMessageAsync(BuildStopMessage());
+        _store.Set(guildId, pages.Count, stopSent);
+
+        _ = await ctx.EditResponseAsync(new DiscordWebhookBuilder()
             .WithContent("✅ Soundboard created!"));
 
         _ = Task.Delay(TimeSpan.FromSeconds(3)).ContinueWith(async _ =>
@@ -101,7 +105,7 @@ public class SoundboardCommands
         }
 
         var sounds = _soundboardService.GetAllSounds();
-        var pages  = sounds
+        var pages = sounds
             .Select((sound, i) => (sound, globalIndex: i))
             .Chunk(ButtonsPerMessage)
             .ToList();
@@ -113,28 +117,45 @@ public class SoundboardCommands
 
         // Capture stored page count BEFORE we add new pages below
         int previousPageCount = _store.PageCount(guildId);
+        int totalMessages = pages.Count + 1; // +1 for stop message
 
-        for (int pageIndex = 0; pageIndex < pages.Count; pageIndex++)
+        for (int pageIndex = 0; pageIndex < totalMessages; pageIndex++)
         {
-            var pageData = pages[pageIndex];
+            bool isStop = pageIndex == pages.Count;
             var existing = await _store.GetAsync(guildId, pageIndex);
+            var builder = isStop ? BuildStopMessage() : BuildPageMessage(pages[pageIndex], isFirst: pageIndex == 0);
 
             if (existing is not null)
             {
-                var builder = BuildPageMessage(pageData, isFirst: pageIndex == 0, isLast: pageIndex == pages.Count - 1);
-                await existing.ModifyAsync(builder);
+                // diff check — skip stop message since it never changes
+                if (isStop) continue;
+
+                var newButtons = builder.Components
+                    .OfType<DiscordActionRowComponent>()
+                    .SelectMany(r => r.Components)
+                    .OfType<DiscordButtonComponent>()
+                    .Select(b => (b.CustomId, b.Label))
+                    .ToHashSet();
+
+                var existingButtons = existing.Components
+                    .OfType<DiscordActionRowComponent>()
+                    .SelectMany(r => r.Components)
+                    .OfType<DiscordButtonComponent>()
+                    .Select(b => (b.CustomId, b.Label))
+                    .ToHashSet();
+
+                if (!newButtons.SetEquals(existingButtons))
+                    _ = await existing.ModifyAsync(builder);
             }
             else
             {
-                // New page (soundboard grew) — send as a plain channel message
-                var builder = BuildPageMessage(pageData, isFirst: pageIndex == 0, isLast: pageIndex == pages.Count - 1);
-                var sent    = await ctx.Channel.SendMessageAsync(builder);
+                var sent = await ctx.Channel.SendMessageAsync(builder);
                 _store.Set(guildId, pageIndex, sent);
             }
         }
 
-        // Delete orphaned pages (soundboard shrank)
-        for (int pageIndex = pages.Count; pageIndex < previousPageCount; pageIndex++)
+        // Delete orphaned pages (soundboard shrank) — stop message is always kept
+        for (int pageIndex = totalMessages; pageIndex < previousPageCount; pageIndex++)
         {
             var orphan = await _store.GetAsync(guildId, pageIndex);
             if (orphan is null) continue;
@@ -145,11 +166,14 @@ public class SoundboardCommands
             }
         }
 
+        if (previousPageCount > totalMessages)
+            _store.TrimTo(guildId, totalMessages);
+
         // Trim store entries for deleted pages
         if (previousPageCount > pages.Count)
             _store.TrimTo(guildId, pages.Count);
 
-        await ctx.EditResponseAsync(new DiscordWebhookBuilder()
+        _ = await ctx.EditResponseAsync(new DiscordWebhookBuilder()
             .WithContent("✅ Soundboard updated!"));
 
         _ = Task.Delay(TimeSpan.FromSeconds(3)).ContinueWith(async _ =>
@@ -203,7 +227,7 @@ public class SoundboardCommands
     {
         var builder = new DiscordMessageBuilder();
 
-        builder.WithContent(isFirst
+        _ = builder.WithContent(isFirst
             ? "🎵 **Soundboard** — join a voice channel and click a button to play!"
             : " ");
 
@@ -225,17 +249,9 @@ public class SoundboardCommands
             .ToList();
 
         foreach (var row in rows)
-            builder.AddActionRowComponent(row);
+            _ = builder.AddActionRowComponent(row);
 
-        // Stop button on the last page only
-        if (isLast)
-            builder.AddActionRowComponent(new DiscordActionRowComponent([
-                new DiscordButtonComponent(
-                    DiscordButtonStyle.Danger,
-                    customId: "sound_stop",
-                    label: "Stop",
-                    emoji: new DiscordComponentEmoji("⏹️"))
-            ]));
+
 
         return builder;
     }
@@ -260,4 +276,14 @@ public class SoundboardCommands
 
         return new DiscordComponentEmoji(raw.Trim(':'));
     }
+
+    internal static DiscordMessageBuilder BuildStopMessage() =>
+    new DiscordMessageBuilder()
+        .WithContent(" ")
+        .AddActionRowComponent(new DiscordActionRowComponent([
+            new DiscordButtonComponent(
+                DiscordButtonStyle.Danger,
+                customId: "sound_stop",
+                label: "STOP")
+        ]));
 }

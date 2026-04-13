@@ -19,7 +19,7 @@ public sealed class VoiceCommands
 
         if (!double.TryParse(weightStr, NumberStyles.Any, CultureInfo.InvariantCulture, out double weight) || weight < 0)
         {
-            builder.WithContent("❌ Invalid weight. Use a positive number like `1.5`.");
+            _ = builder.WithContent("❌ Invalid weight. Use a positive number like `1.5`.");
             await context.RespondAsync(builder);
             return;
         }
@@ -27,7 +27,7 @@ public sealed class VoiceCommands
         var service = context.ServiceProvider.GetRequiredService<UserWeightService>();
         await service.SetWeightAsync(user.Id, weight);
 
-        builder.WithContent($"✅ Weight for {user.Mention} set to **{weight}**.");
+        _ = builder.WithContent($"✅ Weight for {user.Mention} set to **{weight}**.");
         await context.RespondAsync(builder);
     }
 
@@ -41,7 +41,7 @@ public sealed class VoiceCommands
         await service.RemoveWeightAsync(user.Id);
 
         var builder = new DiscordInteractionResponseBuilder().AsEphemeral();
-        builder.WithContent($"✅ Weight for {user.Mention} reset to default (1.0).");
+        _ = builder.WithContent($"✅ Weight for {user.Mention} reset to default (1.0).");
         await context.RespondAsync(builder);
     }
 
@@ -56,12 +56,12 @@ public sealed class VoiceCommands
 
         if (all.Count == 0)
         {
-            builder.WithContent("No custom weights set. All users default to **1.0**.");
+            _ = builder.WithContent("No custom weights set. All users default to **1.0**.");
         }
         else
         {
             var list = string.Join("\n", all.Select(kv => $"<@{kv.Key}> → **{kv.Value}**"));
-            builder.WithContent($"📋 User weights:\n{list}");
+            _ = builder.WithContent($"📋 User weights:\n{list}");
         }
 
         await context.RespondAsync(builder);

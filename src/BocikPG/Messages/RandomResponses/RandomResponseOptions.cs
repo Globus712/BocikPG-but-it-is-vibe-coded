@@ -18,5 +18,5 @@ public class RandomResponseOptions
     public double DefaultChance { get; set; } = 0.05;        // 5% chance
     public List<WeightedResponse> DefaultResponses { get; set; } = new();
     public bool GlobalEnabled { get; set; } = true;
-    public string StorageFile { get; set; } = "RandomResponses.json";
+    public string StorageFile { get; set; } = "Resources/Chat/random_responses.json";
 }

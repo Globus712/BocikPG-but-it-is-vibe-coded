@@ -1,5 +1,6 @@
 using BocikPG;
 using BocikPG.Soundboard;
+using BocikPG.Sync;
 using DSharpPlus;
 using DSharpPlus.Commands;
 using DSharpPlus.Commands.Processors.SlashCommands;
@@ -38,6 +39,8 @@ discordClientBuilder.ConfigureServices(services =>
     services.Configure<RandomResponseOptions>(configuration.GetSection("RandomResponse"));
     services.Configure<VoiceOptions>(configuration.GetSection("Voice"));
     services.Configure<SoundboardOptions>(configuration.GetSection("Soundboard"));
+    services.Configure<GitSyncOptions>(configuration.GetSection("Sync"));
+    services.Configure<ChatOptions>(configuration.GetSection("Chat"));
 
     // ---- Lavalink (registered here, in the same DI container) ----
     services.AddLavalink();
@@ -51,14 +54,28 @@ discordClientBuilder.ConfigureServices(services =>
     // ---- Bot services ----
     services.AddSingleton<MessageCreatedHandler>();
     services.AddSingleton<KeywordService>();
+    services.AddSingleton<IReloadable>(sp => sp.GetRequiredService<KeywordService>());
+
     services.AddSingleton<PingHandlerService>();
+    services.AddSingleton<IReloadable>(sp => sp.GetRequiredService<PingHandlerService>());
+
     services.AddSingleton<RandomResponseService>();
-    services.AddSingleton<VoiceChannelService>();
+    services.AddSingleton<IReloadable>(sp => sp.GetRequiredService<RandomResponseService>());
+
     services.AddSingleton<UserWeightService>();
-    services.AddSingleton<VoiceChannelService>();
+    services.AddSingleton<IReloadable>(sp => sp.GetRequiredService<UserWeightService>());
+
+    services.AddSingleton<VoiceChannelService>();   // no file ownership — no IReloadable
     services.AddSingleton<SoundboardService>();
+    services.AddSingleton<IReloadable>(sp => sp.GetRequiredService<SoundboardService>());
+
     services.AddSingleton<SoundboardInteractionHandler>();
     services.AddSingleton<SoundboardMessageStore>();
+    services.AddSingleton<IReloadable>(sp => sp.GetRequiredService<SoundboardMessageStore>());
+
+    services.AddSingleton<GitSyncService>();
+    services.AddSingleton<SyncReloadCoordinator>();  // <-- new
+    services.AddSingleton<SyncConflictHandler>();
 
     services.AddHostedService<PingDecayService>();
 
@@ -88,6 +105,7 @@ discordClientBuilder.ConfigureEventHandlers(handlers =>
     handlers.AddEventHandlers<MessageCreatedHandler>(ServiceLifetime.Singleton);
     handlers.AddEventHandlers<VoiceEventHandler>(ServiceLifetime.Singleton);
     handlers.AddEventHandlers<SoundboardInteractionHandler>(ServiceLifetime.Singleton);
+    handlers.AddEventHandlers<SyncConflictHandler>(ServiceLifetime.Singleton);
 });
 
 discordClientBuilder.UseVoiceNext(new VoiceNextConfiguration());
