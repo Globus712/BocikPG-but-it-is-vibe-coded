@@ -49,6 +49,7 @@ discordClientBuilder.ConfigureServices(services =>
         config.BaseAddress = new Uri(
             $"http://{configuration["Lavalink:Host"] ?? "localhost"}:{configuration["Lavalink:Port"] ?? "2333"}");
         config.Passphrase = configuration["Lavalink:Password"] ?? "youshallnotpass";
+        config.ResumptionOptions = new LavalinkSessionResumptionOptions(TimeSpan.FromSeconds(120));
     });
 
     // ---- Bot services ----
@@ -76,6 +77,8 @@ discordClientBuilder.ConfigureServices(services =>
     services.AddSingleton<GitSyncService>();
     services.AddSingleton<SyncReloadCoordinator>();  // <-- new
     services.AddSingleton<SyncConflictHandler>();
+    services.AddSingleton<SoundboardUploadHandler>();
+    services.AddSingleton<SoundboardBoardService>();
 
     services.AddHostedService<PingDecayService>();
 
@@ -118,6 +121,11 @@ var client = discordClientBuilder.Build();
 await client.ServiceProvider.GetRequiredService<IAudioService>().StartAsync();
 
 await client.ConnectAsync();
+
+// Wait a few seconds for guilds to load
+await Task.Delay(5000);
+var voiceService = client.ServiceProvider.GetRequiredService<VoiceChannelService>();
+await voiceService.InitializeAllGuildsAsync();
 
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) =>

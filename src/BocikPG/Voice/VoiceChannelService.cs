@@ -4,6 +4,9 @@ using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
 using DSharpPlus.Net.Abstractions;
 using DSharpPlus.Net.Gateway;
+using Lavalink4NET;
+using Lavalink4NET.Clients;
+using Lavalink4NET.Players;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -11,17 +14,20 @@ public class VoiceChannelService
 {
     private readonly DiscordClient _discordClient;
     private readonly UserWeightService _weightService;
+    private readonly IAudioService _audioService;  // <-- add this
     private readonly VoiceOptions _options;
     private readonly ILogger<VoiceChannelService> _logger;
 
     public VoiceChannelService(
         DiscordClient discordClient,
         UserWeightService weightService,
+        IAudioService audioService,  // <-- add parameter
         IOptions<VoiceOptions> options,
         ILogger<VoiceChannelService> logger)
     {
         _discordClient = discordClient;
         _weightService = weightService;
+        _audioService = audioService;  // <-- store
         _options = options.Value;
         _logger = logger;
     }
@@ -33,6 +39,14 @@ public class VoiceChannelService
         if (args.UserId == _discordClient.CurrentUser.Id) return;
 
         await EvaluateAsync(args.GuildId.Value);
+    }
+
+    public async Task InitializeAllGuildsAsync()
+    {
+        foreach (var guild in _discordClient.Guilds.Values)
+        {
+            await EvaluateAsync(guild.Id);
+        }
     }
 
     private async Task EvaluateAsync(ulong guildId)
@@ -76,7 +90,11 @@ public class VoiceChannelService
                 _logger.LogInformation(
                     "No humans in any voice channel, disconnecting from {ChannelName} ({ChannelId}).",
                     currentChannel?.Name, currentChannelId);
-                await SendVoiceStateUpdateAsync(guildId, null);
+                var player = await _audioService.Players.GetPlayerAsync<LavalinkPlayer>(guildId);
+                if (player is not null)
+                {
+                    await player.DisconnectAsync();
+                }
             }
             else
             {
@@ -95,22 +113,34 @@ public class VoiceChannelService
         _logger.LogInformation("Moving to {ChannelName} ({ChannelId}) with score {Score}.",
             bestChannelName, bestChannelId, bestScore);
 
-        await SendVoiceStateUpdateAsync(guildId, bestChannelId);
+        await MoveToChannelAsync(guildId, bestChannelId.Value);
     }
 
-    private Task SendVoiceStateUpdateAsync(ulong guildId, ulong? channelId)
+    private async Task MoveToChannelAsync(ulong guildId, ulong channelId)
     {
-        // This is exactly what VoiceNext does internally
-        var payload = new
+        try
         {
-            guild_id = guildId.ToString(),
-            channel_id = channelId?.ToString(),
-            self_mute = false,
-            self_deaf = false
-        };
+            var result = await _audioService.Players.RetrieveAsync<LavalinkPlayer, LavalinkPlayerOptions>(
+                guildId,
+                channelId,
+                PlayerFactory.Default,
+                Microsoft.Extensions.Options.Options.Create(new LavalinkPlayerOptions()),
+                new PlayerRetrieveOptions(
+                    ChannelBehavior: PlayerChannelBehavior.Move,
+                    VoiceStateBehavior: MemberVoiceStateBehavior.AlwaysRequired));
 
-#pragma warning disable DSP0004 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
-        return _discordClient.SendPayloadAsync(GatewayOpCode.VoiceStateUpdate, payload, guildId);
-#pragma warning restore DSP0004 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+            if (result.IsSuccess)
+            {
+                _logger.LogInformation("Moved to channel {ChannelId} using Lavalink", channelId);
+            }
+            else
+            {
+                _logger.LogWarning("Failed to move to channel {ChannelId}: {Status}", channelId, result.Status);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error moving to channel {ChannelId}", channelId);
+        }
     }
 }

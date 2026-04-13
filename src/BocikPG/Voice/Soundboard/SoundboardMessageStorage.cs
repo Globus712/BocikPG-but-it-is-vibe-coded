@@ -131,6 +131,8 @@ public class SoundboardMessageStore : IReloadable
         }
     }
 
+    public IReadOnlyList<ulong> GetAllGuildIds() => _data.Keys.ToList();
+
     public int PageCount(ulong guildId) =>
         _data.TryGetValue(guildId, out var pages) ? pages.Count : 0;
 

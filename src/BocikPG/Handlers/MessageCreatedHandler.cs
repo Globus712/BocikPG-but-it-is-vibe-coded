@@ -1,4 +1,5 @@
 using BocikPG;
+using BocikPG.Soundboard;
 using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
@@ -9,17 +10,20 @@ public sealed class MessageCreatedHandler : IEventHandler<MessageCreatedEventArg
     private readonly KeywordService _keywordService;
     private readonly PingHandlerService _pingService;
     private readonly RandomResponseService _randomResponseService;
+    private readonly SoundboardUploadHandler _soundboardUploadHandler;
     private readonly bool _ttsEnabled;
 
     public MessageCreatedHandler(
         KeywordService keywordService,
         PingHandlerService pingService,
         RandomResponseService randomResponseService,
+        SoundboardUploadHandler soundboardUploadHandler,
         IOptions<PingOptions> pingOptions)
     {
         _keywordService = keywordService;
         _pingService = pingService;
         _randomResponseService = randomResponseService;
+        _soundboardUploadHandler = soundboardUploadHandler;
         _ttsEnabled = pingOptions.Value.TtsEnabled;
     }
 
@@ -27,7 +31,10 @@ public sealed class MessageCreatedHandler : IEventHandler<MessageCreatedEventArg
     {
         if (args.Author.IsCurrent) return;
 
-        // 1. Keyword response
+        // 1. Soundboard upload
+        if (await _soundboardUploadHandler.TryHandleAsync(sender, args)) return;
+
+        // 2. Keyword response
         var keywordResponse = _keywordService.GetResponse(args.Message.Content);
         if (keywordResponse != null)
         {
@@ -35,31 +42,22 @@ public sealed class MessageCreatedHandler : IEventHandler<MessageCreatedEventArg
             return;
         }
 
-        // 2. Random response (chance based)
+        // 3. Random response (chance based)
         var randomResponse = _randomResponseService.GetRandomResponse(args.Author.Id);
         if (randomResponse != null)
         {
             _ = await args.Message.RespondAsync(randomResponse);
-            return;  // stop here, or allow both? Your choice.
+            return;
         }
 
-        // 3. Bot mention response
+        // 4. Bot mention response
         if (args.Message.MentionedUsers?.Any(u => u.Id == sender.CurrentUser.Id) == true)
         {
-            // Get the member (null if DM)
-            // Get DiscordMember (null if DM or if fetch fails)
             DiscordMember? member = null;
             if (args.Guild != null)
             {
-                try
-                {
-                    member = await args.Guild.GetMemberAsync(args.Author.Id);
-                }
-                catch
-                {
-                    // User not in guild? Shouldn't happen, but just in case.
-                    member = null;
-                }
+                try { member = await args.Guild.GetMemberAsync(args.Author.Id); }
+                catch { member = null; }
             }
 
             var response = await _pingService.CanPingAsync(args.Author.Id, member);
