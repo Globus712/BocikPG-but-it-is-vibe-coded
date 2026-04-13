@@ -3,7 +3,7 @@ namespace BocikPG;
 public class BotOptions
 {
     public string Token { get; set; } = "";
-    public ulong OwnerId { get; set; } = 0;   // Bot owner's Discord user ID
+    public ulong OwnerId { get; set; } = 0;
 }
 
 public class LavalinkOptions
@@ -23,14 +23,13 @@ public class PingOptions
     public string MaxPingsMessage { get; set; } = "You've pinged me {0} times. I'm ignoring you for {1} seconds.";
     public string WarningMessage { get; set; } = "Warning! You have {0} more ping(s) before being ignored for {1} seconds.";
     public bool DecayEnabled { get; set; } = true;
-    public int DecayIntervalMinutes { get; set; } = 60;   // default 1 hour
+    public int DecayIntervalMinutes { get; set; } = 60;
     public int ServerTimeoutMinutes { get; set; } = 0;
     public string PersonalizedResponsesFilePath { get; set; } = "Resources/Chat/personalized_responses.json";
 }
 
 public class ChatOptions
 {
-    // Domyślna ścieżka, którą miałeś wcześniej w serwisie
     public string KeywordsFilePath { get; set; } = "Resources/Chat/keywords.json";
 }
 
@@ -44,30 +43,23 @@ public class SoundboardOptions
 {
     public string SoundFilesPath { get; set; } = "Resources/Soundboard/Sounds";
     public string SoundDefinitionsFile { get; set; } = "Resources/Soundboard/soundboard.json";
-    public string SoundBaseUrl { get; set; } = ""; // optional HTTP base URL
+    public string SoundBaseUrl { get; set; } = "";
     public string MessageStorageFile { get; set; } = "Resources/Soundboard/soundboard_messages.json";
+
+    /// <summary>
+    /// Path (relative to AppContext.BaseDirectory) for the per-user
+    /// join/leave sound assignment data.
+    /// </summary>
+    public string UserSoundsFile { get; set; } = "Resources/Soundboard/user_sounds.json";
 }
 
 public class GitSyncOptions
 {
-    /// <summary>Path to the local git repository root (usually same as AppContext.BaseDirectory).</summary>
     public string RepoPath { get; set; } = AppContext.BaseDirectory;
- 
-    /// <summary>GitHub Personal Access Token with repo scope.</summary>
     public string PersonalAccessToken { get; set; } = "";
- 
-    /// <summary>Git commit author name.</summary>
     public string AuthorName { get; set; } = "BocikPG Bot";
- 
-    /// <summary>Git commit author email.</summary>
     public string AuthorEmail { get; set; } = "bot@bocikpg.local";
- 
-    /// <summary>Branch to push/pull from.</summary>
     public string Branch { get; set; } = "main";
- 
-    /// <summary>Discord user ID to notify on conflict.</summary>
     public ulong OwnerId { get; set; } = 0;
- 
-    /// <summary>Whether cloud sync is enabled at all.</summary>
     public bool Enabled { get; set; } = false;
 }

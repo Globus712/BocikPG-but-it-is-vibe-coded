@@ -25,7 +25,7 @@ var token = configuration["Discord:Token"]
     ?? throw new Exception("Discord:Token is not configured.");
 
 // ============================================================================
-// Discord Client Builder  (this IS the host)
+// Discord Client Builder
 // ============================================================================
 var discordClientBuilder = DiscordClientBuilder.CreateSharded(token, DiscordIntents.All);
 
@@ -42,7 +42,7 @@ discordClientBuilder.ConfigureServices(services =>
     services.Configure<GitSyncOptions>(configuration.GetSection("Sync"));
     services.Configure<ChatOptions>(configuration.GetSection("Chat"));
 
-    // ---- Lavalink (registered here, in the same DI container) ----
+    // ---- Lavalink ----
     services.AddLavalink();
     services.ConfigureLavalink(config =>
     {
@@ -66,7 +66,7 @@ discordClientBuilder.ConfigureServices(services =>
     services.AddSingleton<UserWeightService>();
     services.AddSingleton<IReloadable>(sp => sp.GetRequiredService<UserWeightService>());
 
-    services.AddSingleton<VoiceChannelService>();   // no file ownership — no IReloadable
+    services.AddSingleton<VoiceChannelService>();
     services.AddSingleton<SoundboardService>();
     services.AddSingleton<IReloadable>(sp => sp.GetRequiredService<SoundboardService>());
 
@@ -74,8 +74,14 @@ discordClientBuilder.ConfigureServices(services =>
     services.AddSingleton<SoundboardMessageStore>();
     services.AddSingleton<IReloadable>(sp => sp.GetRequiredService<SoundboardMessageStore>());
 
+    // ---- Soundboard: player + per-user sounds ----
+    services.AddSingleton<SoundPlayerService>();           // shared play logic
+    services.AddSingleton<UserSoundService>();             // per-user assignments
+    services.AddSingleton<IReloadable>(sp => sp.GetRequiredService<UserSoundService>());
+    services.AddSingleton<VoiceJoinLeaveHandler>();        // join/leave event handler
+
     services.AddSingleton<GitSyncService>();
-    services.AddSingleton<SyncReloadCoordinator>();  // <-- new
+    services.AddSingleton<SyncReloadCoordinator>();
     services.AddSingleton<SyncConflictHandler>();
     services.AddSingleton<SoundboardUploadHandler>();
     services.AddSingleton<SoundboardBoardService>();
@@ -86,7 +92,6 @@ discordClientBuilder.ConfigureServices(services =>
     services.AddLogging(logging =>
     {
         logging.AddConsole();
-        // Read ASPNETCORE_ENVIRONMENT or DOTNET_ENVIRONMENT to detect dev mode
         var env = configuration["DOTNET_ENVIRONMENT"] ?? "Production";
         logging.SetMinimumLevel(
             env.Equals("Development", StringComparison.OrdinalIgnoreCase)
@@ -109,6 +114,7 @@ discordClientBuilder.ConfigureEventHandlers(handlers =>
     handlers.AddEventHandlers<VoiceEventHandler>(ServiceLifetime.Singleton);
     handlers.AddEventHandlers<SoundboardInteractionHandler>(ServiceLifetime.Singleton);
     handlers.AddEventHandlers<SyncConflictHandler>(ServiceLifetime.Singleton);
+    handlers.AddEventHandlers<VoiceJoinLeaveHandler>(ServiceLifetime.Singleton);  // new
 });
 
 discordClientBuilder.UseVoiceNext(new VoiceNextConfiguration());
@@ -119,10 +125,8 @@ discordClientBuilder.UseVoiceNext(new VoiceNextConfiguration());
 var client = discordClientBuilder.Build();
 
 await client.ServiceProvider.GetRequiredService<IAudioService>().StartAsync();
-
 await client.ConnectAsync();
 
-// Wait a few seconds for guilds to load
 await Task.Delay(5000);
 var voiceService = client.ServiceProvider.GetRequiredService<VoiceChannelService>();
 await voiceService.InitializeAllGuildsAsync();
@@ -134,8 +138,6 @@ Console.CancelKeyPress += (_, e) =>
     cts.Cancel();
 };
 
-
 await Task.Delay(Timeout.Infinite, cts.Token).ContinueWith(_ => Task.CompletedTask);
 
 await client.DisconnectAsync();
-

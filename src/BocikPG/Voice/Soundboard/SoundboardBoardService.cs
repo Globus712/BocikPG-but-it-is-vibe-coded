@@ -183,7 +183,7 @@ public class SoundboardBoardService
 			{
 				var buttons = rowEntries
 					.Select(e => (DiscordComponent)new DiscordButtonComponent(
-						DiscordButtonStyle.Primary,  // ← now blue
+						DiscordButtonStyle.Primary,  
 						customId: $"sound_{e.globalIndex}",
 						label: e.sound.Name.Length <= 80 ? e.sound.Name : e.sound.Name[..80],
 						emoji: ResolveEmoji(e.sound.Emoji)
