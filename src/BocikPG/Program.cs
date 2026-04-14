@@ -99,15 +99,15 @@ discordClientBuilder.ConfigureServices(services =>
     services.AddSingleton<SoundStatsButtonHandler>();
 
     // ---- Logging ----
-    services.AddLogging(logging =>
-    {
-        logging.AddConsole();
-        var env = configuration["DOTNET_ENVIRONMENT"] ?? "Production";
-        logging.SetMinimumLevel(
-            env.Equals("Development", StringComparison.OrdinalIgnoreCase)
-                ? LogLevel.Debug
-                : LogLevel.Information);
-    });
+    // services.AddLogging(logging =>
+    // {
+    //     logging.AddConsole();
+    //     var env = configuration["DOTNET_ENVIRONMENT"] ?? "Production";
+    //     logging.SetMinimumLevel(
+    //         env.Equals("Development", StringComparison.OrdinalIgnoreCase)
+    //             ? LogLevel.Debug
+    //             : LogLevel.Information);
+    // });
 });
 
 // ---- Commands ----

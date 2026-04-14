@@ -50,7 +50,7 @@ public class SoundboardInteractionHandler : IEventHandler<ComponentInteractionCr
         await args.Interaction.CreateResponseAsync(DiscordInteractionResponseType.DeferredMessageUpdate);
 
         var player = await _audioService.Players.GetPlayerAsync<LavalinkPlayer>(args.Interaction.Guild!.Id);
-        if (player is not null && player.State == PlayerState.Playing)
+        if (player is not null)
         {
             await player.StopAsync();
             _logger.LogDebug("Stopped playback in guild {GuildId}", args.Interaction.Guild.Id);

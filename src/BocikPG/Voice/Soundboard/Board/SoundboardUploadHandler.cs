@@ -47,18 +47,14 @@ public sealed class SoundboardUploadHandler
 		if (args.Author.IsCurrent) return false;
 		if (args.Message.Attachments.Count != 1) return false;
 
-		_logger.LogInformation("attachment found");
-
 		var attachment = args.Message.Attachments[0];
 
 		if (!await IsAudioAsync(attachment.Url, attachment.FileName)) return false;
 
-		_logger.LogInformation("attachment is in correct format");
 
 		var content = args.Message.Content?.Trim() ?? "";
 		if (!LooksLikeUploadIntent(content)) return false;
 
-		_logger.LogInformation("upload intent");
 
 		// From here — looked like an intent, return true regardless of outcome
 		var parsed = ParseMessage(content);
@@ -71,7 +67,6 @@ public sealed class SoundboardUploadHandler
 		}
 
 		var (rawEmoji, soundName, volume) = parsed.Value;
-		_logger.LogInformation("emoji parsed");
 
 		if (_soundboardService.GetSound(soundName) is not null)
 		{
@@ -88,7 +83,6 @@ public sealed class SoundboardUploadHandler
 				$"⚠️ A file named `{fileName}` already exists on disk. Rename your file and try again.");
 			return true;
 		}
-		_logger.LogInformation("file get");
 
 		try
 		{

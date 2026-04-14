@@ -24,8 +24,10 @@ public class SoundboardCommands
 
     public SoundboardCommands(
         SoundboardBoardService boardService,
-        ILogger<SoundboardCommands> logger)
+        ILogger<SoundboardCommands> logger,
+        SoundboardService soundboardService)
     {
+        _soundboardService = soundboardService;
         _boardService = boardService;
         _logger = logger;
     }
@@ -44,7 +46,7 @@ public class SoundboardCommands
             _ => "🎵 Creating soundboard..."
         };
 
-        
+
 
         await ctx.RespondAsync(new DiscordInteractionResponseBuilder()
             .WithContent(message)
@@ -92,4 +94,58 @@ public class SoundboardCommands
             .WithContent(ok ? "🗑️ Soundboard removed." : "⚠️ No soundboard found for this server.")
             .AsEphemeral());
     }
+
+    [Command("emotes")]
+    [Description("Lists all emotes used in the soundboard.")]
+    public async ValueTask EmotesAsync(CommandContext ctx)
+    {
+        await ctx.RespondAsync(new DiscordInteractionResponseBuilder()
+            .WithContent("📋 Fetching soundboard emotes...")
+            .AsEphemeral());
+
+        var sounds = _soundboardService.GetAllSounds();
+        if (sounds.Count == 0)
+        {
+            _ = await ctx.EditResponseAsync(new DiscordWebhookBuilder()
+                .WithContent("⚠️ Soundboard is empty."));
+            return;
+        }
+
+        foreach (var (sound, i) in sounds.Select((s, i) => (s, i)))
+        {
+            DiscordComponentEmoji? emoji = null;
+            if (ulong.TryParse(sound.Emoji, out var emojiId))
+                emoji = new DiscordComponentEmoji(emojiId);
+            else if (!string.IsNullOrWhiteSpace(sound.Emoji))
+                emoji = new DiscordComponentEmoji(DiscordEmoji.FromUnicode(sound.Emoji));
+
+            var button = new DiscordButtonComponent(
+                DiscordButtonStyle.Primary,
+                customId: $"sound_{i}",
+                label: sound.Name,
+                emoji: emoji);
+
+            var builder = new DiscordMessageBuilder()
+                .WithContent(" ")
+                .AddActionRowComponent(new DiscordActionRowComponent([button]));
+
+            try
+            {
+                await ctx.Channel.SendMessageAsync(builder);
+            }
+            catch
+            {
+                await ctx.Channel.SendMessageAsync(sound.Name);
+            }
+        }
+
+        _ = await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent("✅ Done!"));
+    }
+
+    private static IEnumerable<string> ChunkString(string text, int maxLength)
+    {
+        for (int i = 0; i < text.Length; i += maxLength)
+            yield return text.Substring(i, Math.Min(maxLength, text.Length - i));
+    }
+
 }
