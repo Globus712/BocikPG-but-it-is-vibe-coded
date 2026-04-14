@@ -77,3 +77,8 @@ public class SoundStatsOptions
     /// </summary>
     public int FlushIntervalMinutes { get; set; } = 15;
 }
+
+public class DynamicCommandOptions
+{
+    public string CommandsFilePath { get; set; } = "Resources/Chat/dynamic_commands.json";
+}

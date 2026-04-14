@@ -44,6 +44,7 @@ discordClientBuilder.ConfigureServices(services =>
     services.Configure<GitSyncOptions>(configuration.GetSection("Sync"));
     services.Configure<ChatOptions>(configuration.GetSection("Chat"));
     services.Configure<SoundStatsOptions>(configuration.GetSection("SoundStats"));
+    services.Configure<DynamicCommandOptions>(configuration.GetSection("DynamicCommand"));
 
     // ---- Lavalink ----
     services.AddLavalink();
@@ -112,6 +113,7 @@ discordClientBuilder.ConfigureServices(services =>
 // ---- Commands ----
 discordClientBuilder.UseCommands((_, commands) =>
 {
+    commands.AddCommands(CommandBuilderFactory.BuildCommandsFromJsonFile(configuration["DynamicCommand:CommandsFilePath"] ?? ""));
     commands.AddCommands(typeof(Program).Assembly);
     commands.AddProcessor(new SlashCommandProcessor());
 });
