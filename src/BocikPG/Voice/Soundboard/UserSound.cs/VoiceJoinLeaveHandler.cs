@@ -51,13 +51,23 @@ public class VoiceJoinLeaveHandler : IEventHandler<VoiceStateUpdatedEventArgs>
 
         if (joined || moved)
         {
-            // The channel the user arrived in.
             var targetChannel = currentChannelId!.Value;
             var soundName = _userSoundService.GetJoinSound(userId);
 
-            var result = soundName is not null
-                ? await _soundPlayerService.PlayByNameAsync(guildId, targetChannel, soundName)
-                : await _soundPlayerService.PlayRandomAsync(guildId, targetChannel);
+            // Assigned join sound → JoinSound source; random fallback → Random source.
+            PlayContext context;
+            SoundPlayerService.PlayResult result;
+
+            if (soundName is not null)
+            {
+                context = new PlayContext(userId, SoundTriggerSource.JoinSound);
+                result  = await _soundPlayerService.PlayByNameAsync(guildId, targetChannel, soundName, context);
+            }
+            else
+            {
+                context = new PlayContext(userId, SoundTriggerSource.Random);
+                result  = await _soundPlayerService.PlayRandomAsync(guildId, targetChannel, context);
+            }
 
             LogResult(result, userId, guildId, "join", soundName);
         }
@@ -76,9 +86,19 @@ public class VoiceJoinLeaveHandler : IEventHandler<VoiceStateUpdatedEventArgs>
 
             var soundName = _userSoundService.GetLeaveSound(userId);
 
-            var result = soundName is not null
-                ? await _soundPlayerService.PlayByNameAsync(guildId, botChannelId.Value, soundName)
-                : await _soundPlayerService.PlayRandomAsync(guildId, botChannelId.Value);
+            PlayContext context;
+            SoundPlayerService.PlayResult result;
+
+            if (soundName is not null)
+            {
+                context = new PlayContext(userId, SoundTriggerSource.LeaveSound);
+                result  = await _soundPlayerService.PlayByNameAsync(guildId, botChannelId.Value, soundName, context);
+            }
+            else
+            {
+                context = new PlayContext(userId, SoundTriggerSource.Random);
+                result  = await _soundPlayerService.PlayRandomAsync(guildId, botChannelId.Value, context);
+            }
 
             LogResult(result, userId, guildId, "leave", soundName);
         }

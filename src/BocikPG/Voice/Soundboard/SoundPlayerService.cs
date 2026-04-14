@@ -16,17 +16,20 @@ public class SoundPlayerService
 {
     private readonly SoundboardService _soundboardService;
     private readonly IAudioService _audioService;
+    private readonly SoundStatsService _statsService;
     private readonly SoundboardOptions _options;
     private readonly ILogger<SoundPlayerService> _logger;
 
     public SoundPlayerService(
         SoundboardService soundboardService,
         IAudioService audioService,
+        SoundStatsService statsService,
         IOptions<SoundboardOptions> options,
         ILogger<SoundPlayerService> logger)
     {
         _soundboardService = soundboardService;
         _audioService = audioService;
+        _statsService = statsService;
         _options = options.Value;
         _logger = logger;
     }
@@ -37,31 +40,35 @@ public class SoundPlayerService
     /// Plays the sound with the given name in <paramref name="voiceChannelId"/>.
     /// Returns a <see cref="PlayResult"/> describing what happened.
     /// </summary>
-    public Task<PlayResult> PlayByNameAsync(ulong guildId, ulong voiceChannelId, string soundName) =>
+    public Task<PlayResult> PlayByNameAsync(
+        ulong guildId, ulong voiceChannelId, string soundName, PlayContext? context = null) =>
         PlayCoreAsync(guildId, voiceChannelId,
             _soundboardService.GetSound(soundName),
-            soundName);
+            soundName,
+            context);
 
     /// <summary>
     /// Plays a random sound from the soundboard in <paramref name="voiceChannelId"/>.
     /// Returns <see cref="PlayResult.NoSounds"/> when the board is empty.
     /// </summary>
-    public Task<PlayResult> PlayRandomAsync(ulong guildId, ulong voiceChannelId)
+    public Task<PlayResult> PlayRandomAsync(
+        ulong guildId, ulong voiceChannelId, PlayContext? context = null)
     {
         var all = _soundboardService.GetAllSounds();
         if (all.Count == 0)
             return Task.FromResult(PlayResult.NoSounds);
 
         var sound = all[Random.Shared.Next(all.Count)];
-        return PlayCoreAsync(guildId, voiceChannelId, sound, sound.Name);
+        return PlayCoreAsync(guildId, voiceChannelId, sound, sound.Name, context);
     }
 
     /// <summary>
     /// Plays a specific <see cref="SoundDefinition"/> directly (used when the caller
     /// already holds the object, e.g. from an index-based interaction).
     /// </summary>
-    public Task<PlayResult> PlaySoundAsync(ulong guildId, ulong voiceChannelId, SoundDefinition sound) =>
-        PlayCoreAsync(guildId, voiceChannelId, sound, sound.Name);
+    public Task<PlayResult> PlaySoundAsync(
+        ulong guildId, ulong voiceChannelId, SoundDefinition sound, PlayContext? context = null) =>
+        PlayCoreAsync(guildId, voiceChannelId, sound, sound.Name, context);
 
     // ── Core ──────────────────────────────────────────────────────────────────
 
@@ -69,7 +76,8 @@ public class SoundPlayerService
         ulong guildId,
         ulong voiceChannelId,
         SoundDefinition? sound,
-        string soundName)
+        string soundName,
+        PlayContext? context)
     {
         if (sound is null)
         {
@@ -95,6 +103,9 @@ public class SoundPlayerService
                 return PlayResult.PlayerUnavailable;
 
             await player.PlayFileAsync(new FileInfo(filePath));
+
+            _statsService.Record(guildId, sound, context);
+
             _logger.LogDebug(
                 "Playing '{SoundName}' in guild {GuildId} channel {ChannelId}",
                 sound.Name, guildId, voiceChannelId);

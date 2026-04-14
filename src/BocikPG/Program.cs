@@ -1,9 +1,11 @@
 using BocikPG;
 using BocikPG.Soundboard;
+using BocikPG.SoundStats;
 using BocikPG.Sync;
 using DSharpPlus;
 using DSharpPlus.Commands;
 using DSharpPlus.Commands.Processors.SlashCommands;
+using DSharpPlus.EventArgs;
 using DSharpPlus.VoiceNext;
 using Lavalink4NET;
 using Lavalink4NET.Extensions;
@@ -41,6 +43,7 @@ discordClientBuilder.ConfigureServices(services =>
     services.Configure<SoundboardOptions>(configuration.GetSection("Soundboard"));
     services.Configure<GitSyncOptions>(configuration.GetSection("Sync"));
     services.Configure<ChatOptions>(configuration.GetSection("Chat"));
+    services.Configure<SoundStatsOptions>(configuration.GetSection("SoundStats"));
 
     // ---- Lavalink ----
     services.AddLavalink();
@@ -86,7 +89,13 @@ discordClientBuilder.ConfigureServices(services =>
     services.AddSingleton<SoundboardUploadHandler>();
     services.AddSingleton<SoundboardBoardService>();
 
+    services.AddSingleton<SoundStatsService>();
+    services.AddSingleton<IReloadable>(sp => sp.GetRequiredService<SoundStatsService>());
+    services.AddHostedService(sp => sp.GetRequiredService<SoundStatsService>());
+
     services.AddHostedService<PingDecayService>();
+    services.AddSingleton<SourceNameAutoCompleteProvider>();
+    services.AddSingleton<SoundStatsButtonHandler>();
 
     // ---- Logging ----
     services.AddLogging(logging =>
@@ -115,6 +124,7 @@ discordClientBuilder.ConfigureEventHandlers(handlers =>
     handlers.AddEventHandlers<SoundboardInteractionHandler>(ServiceLifetime.Singleton);
     handlers.AddEventHandlers<SyncConflictHandler>(ServiceLifetime.Singleton);
     handlers.AddEventHandlers<VoiceJoinLeaveHandler>(ServiceLifetime.Singleton);  // new
+    handlers.AddEventHandlers<SoundStatsButtonHandler>(ServiceLifetime.Singleton);
 });
 
 discordClientBuilder.UseVoiceNext(new VoiceNextConfiguration());
@@ -130,6 +140,9 @@ await client.ConnectAsync();
 await Task.Delay(5000);
 var voiceService = client.ServiceProvider.GetRequiredService<VoiceChannelService>();
 await voiceService.InitializeAllGuildsAsync();
+
+var statsService = client.ServiceProvider.GetRequiredService<SoundStatsService>();
+await statsService.StartAsync(CancellationToken.None);
 
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) =>

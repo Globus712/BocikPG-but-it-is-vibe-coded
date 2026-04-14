@@ -63,3 +63,17 @@ public class GitSyncOptions
     public ulong OwnerId { get; set; } = 0;
     public bool Enabled { get; set; } = false;
 }
+
+public class SoundStatsOptions
+{
+    /// <summary>
+    /// Path (relative to AppContext.BaseDirectory) where play-count stats are persisted.
+    /// </summary>
+    public string StatsFile { get; set; } = "Resources/Soundboard/sound_stats.json";
+
+    /// <summary>
+    /// How often (in minutes) the in-memory stats are flushed to disk and synced to Git.
+    /// Default: 15 minutes.
+    /// </summary>
+    public int FlushIntervalMinutes { get; set; } = 15;
+}

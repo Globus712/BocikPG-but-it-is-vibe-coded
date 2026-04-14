@@ -83,8 +83,9 @@ public class SoundboardInteractionHandler : IEventHandler<ComponentInteractionCr
         }
 
         var sound = allSounds[soundIndex];
+        var context = new PlayContext(args.Interaction.User.Id, SoundTriggerSource.Soundboard);
         var result = await _soundPlayerService.PlaySoundAsync(
-            args.Interaction.Guild.Id, voiceChannelId.Value, sound);
+            args.Interaction.Guild.Id, voiceChannelId.Value, sound, context);
 
         var errorMessage = result switch
         {
