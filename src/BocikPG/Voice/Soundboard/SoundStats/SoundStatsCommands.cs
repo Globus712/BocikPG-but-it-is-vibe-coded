@@ -64,7 +64,6 @@ public class SoundStatsCommands
 
 	[Command("soundstatsflush")]
 	[Description("Force a manual flush of sound stats to disk and Git.")]
-	[RequireOwner]
 	public async ValueTask FlushAsync(CommandContext ctx)
 	{
 		await ctx.RespondAsync(new DiscordInteractionResponseBuilder()

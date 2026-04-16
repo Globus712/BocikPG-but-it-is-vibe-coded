@@ -4,7 +4,6 @@ using DSharpPlus.Entities;
 using Microsoft.Extensions.DependencyInjection;
 
 [Command("pings")]
-[RequireOwner]
 public sealed class PingCommands
 {
     [Command("add")]

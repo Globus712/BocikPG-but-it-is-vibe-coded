@@ -6,7 +6,6 @@ using DSharpPlus.Entities;
 using Microsoft.Extensions.DependencyInjection;
 
 [Command("random")]
-[RequireOwner]
 public sealed class RandomResponseCommands
 {
     [Command("chance")]
