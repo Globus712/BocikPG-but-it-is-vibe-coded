@@ -98,10 +98,6 @@ public class SoundPlayerService
 
         try
         {
-            var player = await ObtainPlayerAsync(guildId, voiceChannelId);
-            if (player is null)
-                return PlayResult.PlayerUnavailable;
-
             var obtained = await ObtainPlayerAsync(guildId, voiceChannelId);
             if (obtained.Status == ObtainResult.WrongChannel) return PlayResult.WrongChannel;
             if (obtained.Player is null) return PlayResult.PlayerUnavailable;

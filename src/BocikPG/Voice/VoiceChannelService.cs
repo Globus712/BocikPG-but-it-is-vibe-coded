@@ -6,6 +6,7 @@ using DSharpPlus.Net.Abstractions;
 using DSharpPlus.Net.Gateway;
 using Lavalink4NET;
 using Lavalink4NET.Clients;
+using Lavalink4NET.Events.Players;
 using Lavalink4NET.Players;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -30,6 +31,8 @@ public class VoiceChannelService
         _audioService = audioService;  // <-- store
         _options = options.Value;
         _logger = logger;
+
+        _audioService.Players.PlayerDestroyed += OnPlayerDestroyedAsync;
     }
 
     public async Task HandleVoiceStateUpdateAsync(VoiceStateUpdatedEventArgs args)
@@ -127,7 +130,7 @@ public class VoiceChannelService
                 Microsoft.Extensions.Options.Options.Create(new LavalinkPlayerOptions()),
                 new PlayerRetrieveOptions(
                     ChannelBehavior: PlayerChannelBehavior.Move,
-                    VoiceStateBehavior: MemberVoiceStateBehavior.AlwaysRequired));
+                    VoiceStateBehavior: MemberVoiceStateBehavior.Ignore)); // ← for bot-initiated moves
 
             if (result.IsSuccess)
             {
@@ -142,5 +145,15 @@ public class VoiceChannelService
         {
             _logger.LogError(ex, "Error moving to channel {ChannelId}", channelId);
         }
+    }
+
+    private async Task OnPlayerDestroyedAsync(object? sender, PlayerDestroyedEventArgs args)
+    {
+        var guildId = args.Player.GuildId;
+        _logger.LogWarning("Player destroyed for guild {GuildId}, re-evaluating...", guildId);
+
+        // Small delay so Discord has time to settle
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        await EvaluateAsync(guildId);
     }
 }
