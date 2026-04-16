@@ -79,6 +79,8 @@ public class SoundboardService : IReloadable
 
     public IReadOnlyList<SoundDefinition> GetAllSounds() => _sounds.AsReadOnly();
 
+    public async Task SaveAsync() => await SaveSounds();
+
     public SoundDefinition? GetSound(string name) =>
         _sounds.FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 

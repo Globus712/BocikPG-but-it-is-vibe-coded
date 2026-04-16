@@ -1,5 +1,7 @@
 using BocikPG;
+using BocikPG.UserSounds;
 using DSharpPlus.Commands;
+using DSharpPlus.Commands.Processors.SlashCommands.ArgumentModifiers;
 using DSharpPlus.Entities;
 using Lavalink4NET;
 using Lavalink4NET.Players.Queued;
@@ -93,6 +95,57 @@ public class SoundboardCommands
         await ctx.RespondAsync(new DiscordInteractionResponseBuilder()
             .WithContent(ok ? "🗑️ Soundboard removed." : "⚠️ No soundboard found for this server.")
             .AsEphemeral());
+    }
+
+    [Command("edit")]
+    [Description("Edit a sound's name, emoji or volume.")]
+    public async ValueTask EditAsync(
+    CommandContext ctx,
+    [Description("Name of the sound to edit.")]
+    [SlashAutoCompleteProvider<SoundNameAutoCompleteProvider>]
+    string name,
+    [Description("New name.")] string? newName = null,
+    [Description("New emoji.")] string? newEmoji = null,
+    [Description("New volume (0-200).")] int? newVolume = null)
+    {
+        var sound = _soundboardService.GetSound(name);
+
+        if (sound is null)
+        {
+            await ctx.RespondAsync(new DiscordInteractionResponseBuilder()
+                .WithContent($"❌ Sound `{name}` not found.")
+                .AsEphemeral());
+            return;
+        }
+
+        if (newName is null && newEmoji is null && newVolume is null)
+        {
+            await ctx.RespondAsync(new DiscordInteractionResponseBuilder()
+                .WithContent("⚠️ Provide at least one of: `newName`, `newEmoji`, `newVolume`.")
+                .AsEphemeral());
+            return;
+        }
+
+        if (newVolume is < 0 or > 200)
+        {
+            await ctx.RespondAsync(new DiscordInteractionResponseBuilder()
+                .WithContent("❌ Volume must be between 0 and 200.")
+                .AsEphemeral());
+            return;
+        }
+
+        await ctx.RespondAsync(new DiscordInteractionResponseBuilder()
+            .WithContent("✏️ Editing sound...")
+            .AsEphemeral());
+
+        if (newName is not null) sound.Name = newName;
+        if (newEmoji is not null) sound.Emoji = newEmoji;
+        if (newVolume is not null) sound.Volume = newVolume.Value;
+
+        await _soundboardService.SaveAsync();
+        await _boardService.UpdateAllAsync();
+
+        _ = await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent("✅ Sound updated!"));
     }
 
     [Command("emotes")]

@@ -102,7 +102,11 @@ public class SoundPlayerService
             if (player is null)
                 return PlayResult.PlayerUnavailable;
 
-            await player.PlayFileAsync(new FileInfo(filePath));
+            var obtained = await ObtainPlayerAsync(guildId, voiceChannelId);
+            if (obtained.Status == ObtainResult.WrongChannel) return PlayResult.WrongChannel;
+            if (obtained.Player is null) return PlayResult.PlayerUnavailable;
+
+            await obtained.Player.PlayFileAsync(new FileInfo(filePath));
 
             _statsService.Record(guildId, sound, context);
 
@@ -135,12 +139,27 @@ public class SoundPlayerService
     /// Returns an existing, healthy player or joins/moves to <paramref name="channelId"/>.
     /// Returns <c>null</c> if the player could not be obtained.
     /// </summary>
-    private async Task<LavalinkPlayer?> ObtainPlayerAsync(ulong guildId, ulong channelId)
+    // Replace the ObtainPlayerAsync return type with a small discriminated result:
+    private enum ObtainResult { Ok, WrongChannel, Unavailable }
+    private record ObtainPlayerResult(LavalinkPlayer? Player, ObtainResult Status);
+
+    private async Task<ObtainPlayerResult> ObtainPlayerAsync(ulong guildId, ulong channelId)
     {
         var player = await _audioService.Players.GetPlayerAsync<LavalinkPlayer>(guildId);
 
         if (player is not null && player.State is not PlayerState.Destroyed)
-            return player;
+        {
+            if (player.VoiceChannelId != channelId)
+            {
+                _logger.LogWarning(
+                    "Guild {GuildId}: playback blocked — requester in channel {Requested}, " +
+                    "bot in channel {Bot}",
+                    guildId, channelId, player.VoiceChannelId);
+                return new(null, ObtainResult.WrongChannel);
+            }
+
+            return new(player, ObtainResult.Ok);
+        }
 
         _logger.LogDebug(
             "No active player for guild {GuildId}, retrieving new one for channel {ChannelId}",
@@ -159,10 +178,10 @@ public class SoundPlayerService
         {
             _logger.LogWarning(
                 "Failed to retrieve player for guild {GuildId}: {Status}", guildId, result.Status);
-            return null;
+            return new(null, ObtainResult.Unavailable);
         }
 
-        return result.Player;
+        return new(result.Player, ObtainResult.Ok);
     }
 
     // ── Result type ───────────────────────────────────────────────────────────
@@ -173,6 +192,7 @@ public class SoundPlayerService
         NotFound,
         FileMissing,
         PlayerUnavailable,
+        WrongChannel,      // ← new
         Timeout,
         NoSounds,
         Error,

@@ -89,11 +89,12 @@ public class SoundboardInteractionHandler : IEventHandler<ComponentInteractionCr
 
         var errorMessage = result switch
         {
-            SoundPlayerService.PlayResult.Ok              => null,
-            SoundPlayerService.PlayResult.FileMissing     => $"❌ Sound file not found: `{sound.Filename}`",
+            SoundPlayerService.PlayResult.Ok => null,
+            SoundPlayerService.PlayResult.FileMissing => $"❌ Sound file not found: `{sound.Filename}`",
             SoundPlayerService.PlayResult.PlayerUnavailable => "❌ Could not connect to voice channel.",
-            SoundPlayerService.PlayResult.Timeout         => "❌ Connection timed out. Please try again.",
-            _                                             => "❌ Failed to play sound. Check logs for details."
+            SoundPlayerService.PlayResult.WrongChannel => "❌ You must be in the same voice channel as the bot.",
+            SoundPlayerService.PlayResult.Timeout => "❌ Connection timed out. Please try again.",
+            _ => "❌ Failed to play sound. Check logs for details."
         };
 
         if (errorMessage is not null)
