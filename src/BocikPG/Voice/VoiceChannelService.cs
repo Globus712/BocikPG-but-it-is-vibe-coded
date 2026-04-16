@@ -33,6 +33,7 @@ public class VoiceChannelService
         _logger = logger;
 
         _audioService.Players.PlayerDestroyed += OnPlayerDestroyedAsync;
+        _ = StartWatchdogAsync(new CancellationToken());
     }
 
     public async Task HandleVoiceStateUpdateAsync(VoiceStateUpdatedEventArgs args)
@@ -155,5 +156,29 @@ public class VoiceChannelService
         // Small delay so Discord has time to settle
         await Task.Delay(TimeSpan.FromSeconds(2));
         await EvaluateAsync(guildId);
+    }
+
+    // In VoiceChannelService
+    public async Task StartWatchdogAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMinutes(2));
+        while (await timer.WaitForNextTickAsync(ct))
+        {
+            foreach (var guild in _discordClient.Guilds.Values)
+            {
+                var player = await _audioService.Players
+                    .GetPlayerAsync<LavalinkPlayer>(guild.Id);
+
+                // Player is gone but bot member thinks it's connected
+                var botMember = await guild.GetMemberAsync(_discordClient.CurrentUser.Id);
+                if (player is null or { State: PlayerState.Destroyed }
+                    && botMember.VoiceState?.ChannelId is not null)
+                {
+                    _logger.LogWarning(
+                        "Watchdog: stale voice state in guild {GuildId}, re-evaluating", guild.Id);
+                    await EvaluateAsync(guild.Id);
+                }
+            }
+        }
     }
 }
