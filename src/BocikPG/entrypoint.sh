@@ -3,7 +3,7 @@ set -e
 
 RESOURCES_DIR="/app/Resources"
 REMOTE_URL="${GitSync__REMOTE:-}"
-BRANCH="${GitSync__BRANCH:-main}"
+BRANCH="${GitSync__Branch:-main}"
 GIT_USER_NAME="${GitSync__User_Name:-BocikPG Bot}"
 GIT_USER_EMAIL="${GitSync__User_Email:-bot@localhost}"
 
@@ -44,7 +44,7 @@ else
         git -C "$RESOURCES_DIR" fetch origin || log "Fetch failed (remote may be empty or unreachable)"
         git -C "$RESOURCES_DIR" pull origin "$BRANCH" --no-rebase || log "Pull failed (branch may not exist yet)"
     else
-        log "No remote URL provided (set GitSync__REMOTE env var). Skipping remote setup."
+        log "No remote URL provided (set GitSync__Remote env var). Skipping remote setup."
     fi
     
     if [ -z "$(git -C "$RESOURCES_DIR" ls-files)" ]; then

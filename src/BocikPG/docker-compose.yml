@@ -36,8 +36,8 @@ services:
       Lavalink__Password: ${LAVALINK_PASSWORD:-youshallnotpass}
 
       # For C# app (if your code reads GitSync:*):
-      GitSync__REMOTE: ${SYNC__REMOTE}
-      GitSync__BRANCH: ${SYNC__BRANCH:-main}
+      GitSync__Remote: ${SYNC__REMOTE}
+      GitSync__Branch: ${SYNC__BRANCH:-main}
       GitSync__User_Name: ${SYNC__USER_NAME:-BocikPG Bot}
       GitSync__User_Email: ${SYNC__USER_EMAIL:-bot@localhost}
       GitSync__PersonalAccessToken: ${SYNC__PERSONALACCESSTOKEN}
