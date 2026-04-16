@@ -12,7 +12,6 @@ namespace BocikPG.UserSounds;
 /// Slash commands for managing per-user join/leave sound assignments.
 /// </summary>
 [Command("usersound")]
-[RequireOwner]
 [Description("Manage join/leave sounds for users.")]
 public class UserSoundCommands
 {
@@ -155,7 +154,9 @@ public class UserSoundCommands
 			.AddField("🔇 Leave sound", leaveSound ?? "_random_", inline: true)
 			.Build();
 
-		await ctx.RespondAsync(embed);
+		await ctx.RespondAsync(new DiscordInteractionResponseBuilder()
+				.AddEmbed(embed)
+				.AsEphemeral(true));
 	}
 
 	// ── Helpers ───────────────────────────────────────────────────────────────
