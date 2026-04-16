@@ -1,0 +1,58 @@
+services:
+
+  # ─── Lavalink ────────────────────────────────────────────────────────────────
+  lavalink:
+    image: ghcr.io/lavalink-devs/lavalink:4
+    container_name: bocikpg-lavalink
+    restart: unless-stopped
+    environment:
+      - SERVER_PORT=2333
+      - LAVALINK_SERVER_PASSWORD=youshallnotpass   # override below or in .env
+    volumes:
+      - ./DockerOptions/lavalink/application.yml:/opt/Lavalink/application.yml:ro
+      - lavalink_plugins:/opt/Lavalink/plugins
+    networks:
+      - bocikpg
+
+  # ─── Discord bot ─────────────────────────────────────────────────────────────
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bocikpg-bot
+    restart: unless-stopped
+    depends_on:
+      - lavalink
+    environment:
+      # ── Discord ──────────────────────────────────────────────────────────────
+      Discord__Token: ${DISCORD_TOKEN}
+      Discord__OwnerId: ${DISCORD_OWNER_ID}
+
+      # ── Lavalink ─────────────────────────────────────────────────────────────
+      # "lavalink" resolves to the Lavalink container on the shared network
+      Lavalink__Host: lavalink
+      Lavalink__Port: 2333
+      Lavalink__Password: ${LAVALINK_PASSWORD:-youshallnotpass}
+
+      # For C# app (if your code reads GitSync:*):
+      GitSync__REMOTE: ${SYNC__REMOTE}
+      GitSync__BRANCH: ${SYNC__BRANCH:-main}
+      GitSync__User_Name: ${SYNC__USER_NAME:-BocikPG Bot}
+      GitSync__User_Email: ${SYNC__USER_EMAIL:-bot@localhost}
+      GitSync__PersonalAccessToken: ${SYNC__PERSONALACCESSTOKEN}
+
+      DOTNET_ENVIRONMENT: Production
+    volumes:
+      # Persist sounds, JSON configs, stats, etc. between container restarts.
+      # Put your Resources folder next to docker-compose.yml and it will be
+      # mounted read-write into the container.
+      - ./Resources:/app/Resources
+    networks:
+      - bocikpg
+
+networks:
+  bocikpg:
+    driver: bridge
+
+volumes:
+  lavalink_plugins:

@@ -43,3 +43,6 @@ appsettings.json
 
 # Voice recordings
 recordings/
+
+# Docker
+.env
