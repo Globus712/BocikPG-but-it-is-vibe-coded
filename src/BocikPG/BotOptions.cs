@@ -41,9 +41,8 @@ public class VoiceOptions
 
 public class SoundboardOptions
 {
-    public string SoundFilesPath { get; set; } = "Resources/Soundboard/Sounds";
+    public string SoundFilesPath { get; set; } = "Resources/Soundboard/Sounds/";
     public string SoundDefinitionsFile { get; set; } = "Resources/Soundboard/soundboard.json";
-    public string SoundBaseUrl { get; set; } = "";
     public string MessageStorageFile { get; set; } = "Resources/Soundboard/soundboard_messages.json";
 
     /// <summary>

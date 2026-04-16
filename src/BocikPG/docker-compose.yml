@@ -11,6 +11,7 @@ services:
     volumes:
       - ./DockerOptions/lavalink/application.yml:/opt/Lavalink/application.yml:ro
       - lavalink_plugins:/opt/Lavalink/plugins
+      - ./Resources:/opt/Lavalink/Resources
     networks:
       - bocikpg
 

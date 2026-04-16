@@ -102,7 +102,7 @@ public class SoundPlayerService
             if (obtained.Status == ObtainResult.WrongChannel) return PlayResult.WrongChannel;
             if (obtained.Player is null) return PlayResult.PlayerUnavailable;
 
-            await obtained.Player.PlayFileAsync(new FileInfo(filePath));
+            await obtained.Player.PlayAsync(_options.SoundFilesPath + sound.Filename);
 
             _statsService.Record(guildId, sound, context);
 
