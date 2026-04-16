@@ -108,7 +108,7 @@ The bot will initialise the `Resources/` Git repository on first start, pull fro
 ---
 
 ## Configuration
-
+ye
 All settings are driven by environment variables (Docker Compose) or `appsettings.json`. Key sections:
 
 | Section | Purpose |
